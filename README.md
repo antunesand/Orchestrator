@@ -185,7 +185,7 @@ If your `claude` binary is at a custom path:
 tools:
   claude:
     command: ["/usr/local/bin/claude"]
-    extra_args: ["-p", "Use the piped input as the full task instructions. Produce the best possible answer.", "--no-color"]
+    extra_args: ["-p", "Use the piped input as the full task instructions. Produce the best possible answer."]
 ```
 
 If your tool requires file-based input:
