@@ -32,8 +32,10 @@ class CouncilConfig(BaseModel):
     def defaults(cls) -> CouncilConfig:
         """Return a config with sensible defaults for claude and codex.
 
-        No extra args by default — users should configure tool-specific
-        flags (e.g. ``-p`` for Claude Code) in ``.council.yml``.
+        Uses the recommended automation-friendly invocations:
+        - Claude Code: ``claude -p`` (headless print mode, reads stdin)
+        - Codex: ``codex exec`` with ``--ask-for-approval never``,
+          ``--sandbox read-only``, and ``-`` (read prompt from stdin)
         """
         return cls(
             tools={
@@ -41,13 +43,17 @@ class CouncilConfig(BaseModel):
                     description="Claude Code CLI",
                     command=["claude"],
                     input_mode=InputMode.STDIN,
-                    extra_args=[],
+                    extra_args=["-p"],
                 ),
                 "codex": ToolConfig(
                     description="Codex CLI",
-                    command=["codex"],
+                    command=["codex", "exec"],
                     input_mode=InputMode.STDIN,
-                    extra_args=[],
+                    extra_args=[
+                        "--ask-for-approval", "never",
+                        "--sandbox", "read-only",
+                        "-",
+                    ],
                 ),
             }
         )
@@ -75,7 +81,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     Returns an empty dict on parse errors (with a warning to stderr).
     """
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
     except yaml.YAMLError as exc:
         print(

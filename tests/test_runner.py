@@ -121,19 +121,19 @@ class TestRunToolErrors:
         # Second wait_for (cleanup communicate after kill) succeeds.
         wait_for_calls = [0]
 
-        original_wait_for = asyncio.wait_for
-
         async def patched_wait_for(coro, timeout):
             wait_for_calls[0] += 1
             if wait_for_calls[0] == 1:
                 # Cancel the coroutine to avoid "never awaited" warning.
                 coro.close()
-                raise asyncio.TimeoutError()
+                raise TimeoutError()
             return await coro
 
-        with patch("council.runner.asyncio.create_subprocess_exec", return_value=mock_proc):
-            with patch("council.runner.asyncio.wait_for", side_effect=patched_wait_for):
-                result = await run_tool("slow", config, "prompt", timeout_sec=1)
+        with (
+            patch("council.runner.asyncio.create_subprocess_exec", return_value=mock_proc),
+            patch("council.runner.asyncio.wait_for", side_effect=patched_wait_for),
+        ):
+            result = await run_tool("slow", config, "prompt", timeout_sec=1)
 
         assert result.timed_out is True
         assert result.exit_code is None

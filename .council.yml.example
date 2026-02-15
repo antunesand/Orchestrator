@@ -1,23 +1,36 @@
 # Council CLI configuration
 # Copy this file to .council.yml in your repo root or ~/.council.yml
+# Run `council init` to create this file automatically.
+#
+# IMPORTANT: Do NOT put API keys or secrets in this file.
+# Council shells out to CLI tools that handle their own authentication.
+# If you're signed into Claude Code or Codex CLI, no keys are needed here.
 #
 # See README.md for full documentation.
 
 tools:
   claude:
-    description: "Claude Code CLI"
+    description: "Claude Code CLI (headless print mode)"
     command: ["claude"]
     input_mode: "stdin"          # stdin | file
-    prompt_file_arg: null        # if input_mode=file, e.g. "--prompt-file"
-    extra_args: ["-p"]           # recommended for Claude Code CLI (pipe mode)
-    env: {}                      # additional env vars
+    prompt_file_arg: null        # only needed if input_mode=file
+    extra_args:
+      - "-p"                     # print mode: non-interactive, reads prompt from stdin
+    env: {}                      # do NOT put API keys here
 
   codex:
-    description: "Codex CLI"
-    command: ["codex"]
+    description: "Codex CLI (non-interactive exec)"
+    command: ["codex", "exec"]   # exec subcommand is the automation-friendly mode
     input_mode: "stdin"
     prompt_file_arg: null
-    extra_args: []
+    extra_args:
+      - "--ask-for-approval"
+      - "never"                  # prevents interactive approval pauses
+      - "--sandbox"
+      - "read-only"              # safer default: no file writes by Codex
+      # IMPORTANT: "-" MUST be last. It is the PROMPT placeholder telling
+      # Codex to read the prompt from stdin.
+      - "-"
     env: {}
 
   # Example: add a third tool

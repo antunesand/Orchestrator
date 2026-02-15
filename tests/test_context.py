@@ -15,7 +15,7 @@ from council.context import (
     _truncate_fenced_diff,
     gather_context,
 )
-from council.types import ContextMode, ContextSource, DiffScope, RunOptions, Mode
+from council.types import ContextMode, ContextSource, DiffScope, Mode, RunOptions
 
 
 class TestExcludePatterns:
@@ -113,7 +113,7 @@ class TestBudgetEnforcement:
         _enforce_budget(sections, max_bytes=600)
         # Diff should remain.
         labels = [s[0][:10] for s in sections]
-        assert any("Diff" in l for l in labels)
+        assert any("Diff" in lbl for lbl in labels)
         # Dropped sources should be marked.
         assert src_tree.excluded is True
         assert src_tree.included_size == 0

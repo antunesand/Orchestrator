@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
-from council.types import RunOptions, Mode, ContextMode, DiffScope
+import pytest
+
+from council.types import ContextMode, DiffScope, Mode, RunOptions
 
 
 @pytest.fixture

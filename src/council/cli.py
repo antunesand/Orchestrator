@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import asyncio
-import sys
+import importlib.resources
+import shutil
+import subprocess
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
 from council import __version__
-from council.config import CouncilConfig, find_repo_root, load_config
+from council.config import find_repo_root, load_config
 from council.pipeline import run_pipeline
 from council.types import ContextMode, DiffScope, Mode, RunOptions
+
+# Path to the bundled example config.
+_EXAMPLE_CONFIG = Path(__file__).parent.parent.parent / ".council.yml.example"
 
 
 def _version_callback(value: bool) -> None:
@@ -31,7 +36,7 @@ app = typer.Typer(
 @app.callback()
 def main(
     version: Annotated[
-        Optional[bool],
+        bool | None,
         typer.Option("--version", help="Show version and exit", callback=_version_callback, is_eager=True),
     ] = None,
 ) -> None:
@@ -110,17 +115,17 @@ def _run(opts: RunOptions) -> None:
         asyncio.run(run_pipeline(opts, cfg))
     except KeyboardInterrupt:
         typer.echo("\nInterrupted.", err=True)
-        raise typer.Exit(130)
+        raise typer.Exit(130) from None
 
 
 @app.command()
 def fix(
     task: Annotated[str, typer.Argument(help="Bug/error description or traceback")] = "",
-    task_file: Annotated[Optional[Path], typer.Option("--task-file", help="Read task from file")] = None,
+    task_file: Annotated[Path | None, typer.Option("--task-file", help="Read task from file")] = None,
     context: Annotated[ContextMode, typer.Option("--context", help="Context gathering mode")] = ContextMode.AUTO,
     diff: Annotated[DiffScope, typer.Option("--diff", help="Which diffs to include")] = DiffScope.ALL,
-    include: Annotated[Optional[list[str]], typer.Option("--include", help="Include file content")] = None,
-    include_glob: Annotated[Optional[list[str]], typer.Option("--include-glob", help="Include files matching glob")] = None,
+    include: Annotated[list[str] | None, typer.Option("--include", help="Include file content")] = None,
+    include_glob: Annotated[list[str] | None, typer.Option("--include-glob", help="Include files matching glob")] = None,
     include_from_diff: Annotated[bool, typer.Option("--include-from-diff", help="Include changed file contents")] = False,
     max_context_kb: Annotated[int, typer.Option("--max-context-kb", help="Max total context size in KB")] = 300,
     max_file_kb: Annotated[int, typer.Option("--max-file-kb", help="Max single file size in KB")] = 60,
@@ -130,7 +135,7 @@ def fix(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
-    config: Annotated[Optional[Path], typer.Option("--config", help="Path to config file")] = None,
+    config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Fix a bug or error using the multi-LLM council."""
     opts = _common_options(
@@ -147,11 +152,11 @@ def fix(
 @app.command()
 def feature(
     task: Annotated[str, typer.Argument(help="Feature description")] = "",
-    task_file: Annotated[Optional[Path], typer.Option("--task-file", help="Read task from file")] = None,
+    task_file: Annotated[Path | None, typer.Option("--task-file", help="Read task from file")] = None,
     context: Annotated[ContextMode, typer.Option("--context", help="Context gathering mode")] = ContextMode.AUTO,
     diff: Annotated[DiffScope, typer.Option("--diff", help="Which diffs to include")] = DiffScope.ALL,
-    include: Annotated[Optional[list[str]], typer.Option("--include", help="Include file content")] = None,
-    include_glob: Annotated[Optional[list[str]], typer.Option("--include-glob", help="Include files matching glob")] = None,
+    include: Annotated[list[str] | None, typer.Option("--include", help="Include file content")] = None,
+    include_glob: Annotated[list[str] | None, typer.Option("--include-glob", help="Include files matching glob")] = None,
     include_from_diff: Annotated[bool, typer.Option("--include-from-diff", help="Include changed file contents")] = False,
     max_context_kb: Annotated[int, typer.Option("--max-context-kb", help="Max total context size in KB")] = 300,
     max_file_kb: Annotated[int, typer.Option("--max-file-kb", help="Max single file size in KB")] = 60,
@@ -161,7 +166,7 @@ def feature(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
-    config: Annotated[Optional[Path], typer.Option("--config", help="Path to config file")] = None,
+    config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Implement a new feature using the multi-LLM council."""
     opts = _common_options(
@@ -178,11 +183,11 @@ def feature(
 @app.command()
 def review(
     task: Annotated[str, typer.Argument(help="Review instructions or focus areas")] = "",
-    task_file: Annotated[Optional[Path], typer.Option("--task-file", help="Read task from file")] = None,
+    task_file: Annotated[Path | None, typer.Option("--task-file", help="Read task from file")] = None,
     context: Annotated[ContextMode, typer.Option("--context", help="Context gathering mode")] = ContextMode.AUTO,
     diff: Annotated[DiffScope, typer.Option("--diff", help="Which diffs to include")] = DiffScope.STAGED,
-    include: Annotated[Optional[list[str]], typer.Option("--include", help="Include file content")] = None,
-    include_glob: Annotated[Optional[list[str]], typer.Option("--include-glob", help="Include files matching glob")] = None,
+    include: Annotated[list[str] | None, typer.Option("--include", help="Include file content")] = None,
+    include_glob: Annotated[list[str] | None, typer.Option("--include-glob", help="Include files matching glob")] = None,
     include_from_diff: Annotated[bool, typer.Option("--include-from-diff", help="Include changed file contents")] = False,
     max_context_kb: Annotated[int, typer.Option("--max-context-kb", help="Max total context size in KB")] = 300,
     max_file_kb: Annotated[int, typer.Option("--max-file-kb", help="Max single file size in KB")] = 60,
@@ -192,7 +197,7 @@ def review(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
-    config: Annotated[Optional[Path], typer.Option("--config", help="Path to config file")] = None,
+    config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Review code changes using the multi-LLM council."""
     opts = _common_options(
@@ -204,6 +209,242 @@ def review(
         verbose=verbose, config=config,
     )
     _run(opts)
+
+
+def _ensure_gitignore_entries(directory: Path) -> list[str]:
+    """Append .council.yml / council.yml to .gitignore if missing.
+
+    Returns a list of entries that were added.
+    """
+    gitignore = directory / ".gitignore"
+    entries_to_add = [".council.yml", "council.yml"]
+    added: list[str] = []
+
+    existing_lines: set[str] = set()
+    if gitignore.exists():
+        existing_lines = {line.strip() for line in gitignore.read_text(encoding="utf-8").splitlines()}
+
+    missing = [e for e in entries_to_add if e not in existing_lines]
+    if missing:
+        with open(gitignore, "a", encoding="utf-8") as f:
+            # Add a blank line separator if file doesn't end with newline.
+            if gitignore.exists() and gitignore.stat().st_size > 0:
+                content = gitignore.read_bytes()
+                if not content.endswith(b"\n"):
+                    f.write("\n")
+            f.write("\n# Council config (may contain tokens/paths)\n")
+            for entry in missing:
+                f.write(f"{entry}\n")
+                added.append(entry)
+
+    return added
+
+
+def _get_example_config_text() -> str:
+    """Read the bundled .council.yml.example content."""
+    if _EXAMPLE_CONFIG.is_file():
+        return _EXAMPLE_CONFIG.read_text(encoding="utf-8")
+    # Fallback: try importlib.resources (for installed packages).
+    try:
+        ref = importlib.resources.files("council").parent.parent / ".council.yml.example"
+        return ref.read_text(encoding="utf-8")
+    except Exception:
+        # Hardcoded minimal fallback.
+        return (
+            "# Council CLI configuration\n"
+            "# See README.md for full documentation.\n"
+            "tools:\n"
+            "  claude:\n"
+            '    command: ["claude"]\n'
+            '    input_mode: "stdin"\n'
+            '    extra_args: ["-p"]\n'
+            "    env: {}\n"
+            "  codex:\n"
+            '    command: ["codex", "exec"]\n'
+            '    input_mode: "stdin"\n'
+            '    extra_args: ["--ask-for-approval", "never", "--sandbox", "read-only", "-"]\n'
+            "    env: {}\n"
+        )
+
+
+@app.command()
+def init(
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing .council.yml")] = False,
+) -> None:
+    """Create a .council.yml config file and update .gitignore."""
+    repo_root = find_repo_root()
+    target_dir = repo_root if repo_root else Path.cwd()
+    target_file = target_dir / ".council.yml"
+
+    if target_file.exists() and not force:
+        typer.echo(f"Config already exists: {target_file}")
+        typer.echo("Use --force to overwrite.")
+        raise typer.Exit(1)
+
+    config_text = _get_example_config_text()
+    target_file.write_text(config_text, encoding="utf-8")
+    typer.echo(f"Created {target_file}")
+
+    # Update .gitignore.
+    added = _ensure_gitignore_entries(target_dir)
+    if added:
+        typer.echo(f"Added to .gitignore: {', '.join(added)}")
+
+    typer.echo("")
+    typer.echo("Next steps:")
+    typer.echo("  1. Edit .council.yml to customize tool settings")
+    typer.echo("  2. Run `council doctor` to verify your setup")
+    typer.echo('  3. Try a dry run: council fix --dry-run --print-prompts "test task"')
+
+
+@app.command()
+def doctor() -> None:
+    """Check tool availability and configuration."""
+    repo_root = find_repo_root()
+    cfg = load_config(repo_root=repo_root)
+
+    typer.echo(f"council {__version__}\n")
+
+    # Config source.
+    config_locations = []
+    if repo_root:
+        config_locations.extend([
+            repo_root / ".council.yml",
+            repo_root / "council.yml",
+        ])
+    config_locations.append(Path.home() / ".council.yml")
+
+    config_used = None
+    for loc in config_locations:
+        if loc.is_file():
+            config_used = loc
+            break
+    if config_used:
+        typer.echo(f"Config:     {config_used}")
+    else:
+        typer.echo("Config:     (built-in defaults)")
+
+    # Repo root.
+    if repo_root:
+        typer.echo(f"Repo root:  {repo_root}")
+    else:
+        typer.echo("Repo root:  (not in a git repo)")
+
+    typer.echo("")
+    typer.echo("Tools:")
+
+    all_ok = True
+    for name, tcfg in cfg.tools.items():
+        cmd_name = tcfg.command[0] if tcfg.command else "(empty)"
+        full_cmd = list(tcfg.command)
+
+        # 1. Check if base command is on PATH.
+        found = shutil.which(cmd_name)
+        if found is None and Path(cmd_name).is_absolute():
+            found = cmd_name if Path(cmd_name).exists() else None
+
+        if not found:
+            typer.echo(f"  {name:12s} {cmd_name:20s} NOT FOUND")
+            all_ok = False
+            continue
+
+        # 2. Probe version/help for the base command.
+        version_str = _probe_tool_version(cmd_name)
+        status = f"OK ({version_str})" if version_str else "OK (found)"
+        typer.echo(f"  {name:12s} {' '.join(full_cmd):20s} {status}")
+
+        if tcfg.extra_args:
+            typer.echo(f"{'':14s} extra_args: {tcfg.extra_args}")
+
+        # 3. If command has a subcommand (e.g. "codex exec"), validate it.
+        if len(full_cmd) > 1:
+            sub_ok = _check_subcommand(full_cmd)
+            sub_label = " ".join(full_cmd)
+            if sub_ok:
+                typer.echo(f"{'':14s} subcommand '{sub_label}': OK")
+            else:
+                typer.echo(f"{'':14s} subcommand '{sub_label}': FAILED (try `{sub_label} --help`)")
+                all_ok = False
+
+        # 4. Codex-specific: check login status if tool looks like codex.
+        if cmd_name in ("codex",) or (len(full_cmd) > 1 and full_cmd[0] == "codex"):
+            auth_ok = _check_codex_auth()
+            if auth_ok is True:
+                typer.echo(f"{'':14s} codex auth: logged in")
+            elif auth_ok is False:
+                typer.echo(f"{'':14s} codex auth: NOT logged in (run `codex login`)")
+                all_ok = False
+            else:
+                typer.echo(f"{'':14s} codex auth: unknown (could not run `codex login status`)")
+
+    # 5. Suggestions.
+    typer.echo("")
+    if all_ok:
+        typer.echo("All checks passed.")
+    else:
+        typer.echo("Some checks failed. See suggestions above.")
+        typer.echo("Tips:")
+        typer.echo("  - If claude doesn't work in -p mode, test: echo test | claude -p")
+        typer.echo("  - If codex exec isn't available, update Codex CLI")
+        typer.echo("  - If codex auth fails, run: codex login")
+        raise typer.Exit(1)
+
+
+def _probe_tool_version(cmd: str) -> str | None:
+    """Try to get a version string from a tool (--version, then --help).
+
+    Returns version text or None. Never calls the tool with a prompt.
+    """
+    for flag in ("--version", "--help"):
+        try:
+            result = subprocess.run(
+                [cmd, flag],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            output = (result.stdout or result.stderr or "").strip()
+            if output and result.returncode == 0:
+                # Return first line, truncated.
+                first_line = output.splitlines()[0][:60]
+                return first_line
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            continue
+    return None
+
+
+def _check_subcommand(full_cmd: list[str]) -> bool:
+    """Check if a subcommand exists by running it with --help.
+
+    E.g. ``["codex", "exec", "--help"]``. Returns True if exit code is 0.
+    """
+    try:
+        result = subprocess.run(
+            [*full_cmd, "--help"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _check_codex_auth() -> bool | None:
+    """Check Codex login status via ``codex login status``.
+
+    Returns True if logged in (exit 0), False if not (non-zero), None on error.
+    """
+    try:
+        result = subprocess.run(
+            ["codex", "login", "status"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
 
 
 def app_main() -> None:

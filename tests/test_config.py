@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from council.config import CouncilConfig, load_config, _load_yaml
+from council.config import CouncilConfig, _load_yaml, load_config
 
 
 class TestLoadYamlErrors:
@@ -58,18 +58,29 @@ class TestLoadConfigFallback:
 
 
 class TestDefaults:
-    def test_no_extra_args_in_defaults(self):
-        """Issue 7: defaults should not include -p or any extra args."""
+    def test_defaults_claude_uses_print_mode(self):
+        """Defaults should include -p for Claude (headless print mode)."""
         config = CouncilConfig.defaults()
-        assert config.tools["claude"].extra_args == []
-        assert config.tools["codex"].extra_args == []
+        assert config.tools["claude"].extra_args == ["-p"]
+        assert config.tools["claude"].command == ["claude"]
+
+    def test_defaults_codex_uses_exec_mode(self):
+        """Defaults should use codex exec with safety flags and stdin placeholder."""
+        config = CouncilConfig.defaults()
+        assert config.tools["codex"].command == ["codex", "exec"]
+        assert "--ask-for-approval" in config.tools["codex"].extra_args
+        assert "never" in config.tools["codex"].extra_args
+        assert "--sandbox" in config.tools["codex"].extra_args
+        assert "read-only" in config.tools["codex"].extra_args
+        # "-" must be last (stdin PROMPT placeholder).
+        assert config.tools["codex"].extra_args[-1] == "-"
 
 
 class TestPartialToolConfig:
     """Issue 1: partial tool configs must merge on top of per-tool defaults."""
 
-    def test_codex_partial_keeps_codex_command(self, tmp_path: Path):
-        """Codex with only extra_args should still have command=['codex']."""
+    def test_codex_partial_keeps_codex_exec_command(self, tmp_path: Path):
+        """Codex with only extra_args should still have command=['codex', 'exec']."""
         yaml_content = (
             "tools:\n"
             "  codex:\n"
@@ -78,7 +89,7 @@ class TestPartialToolConfig:
         cfg_file = tmp_path / ".council.yml"
         cfg_file.write_text(yaml_content, encoding="utf-8")
         config = load_config(cli_path=cfg_file)
-        assert config.tools["codex"].command == ["codex"]
+        assert config.tools["codex"].command == ["codex", "exec"]
         assert config.tools["codex"].extra_args == ["--foo"]
 
     def test_claude_partial_keeps_claude_command(self, tmp_path: Path):

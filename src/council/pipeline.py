@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from rich.console import Console
@@ -23,7 +22,7 @@ from council.context import gather_context
 from council.diff_extract import extract_and_save
 from council.prompts import round0_prompt, round1_prompt, round2_prompt, round3_prompt
 from council.runner import run_tool, run_tools_parallel
-from council.types import GatheredContext, Mode, RoundResult, RunOptions, ToolResult
+from council.types import GatheredContext, RoundResult, RunOptions, ToolResult
 
 # Shared stderr console for progress output.
 _console = Console(stderr=True, highlight=False)
@@ -68,13 +67,13 @@ def _make_summary(final_output: str) -> str:
         return "\n".join(summary_lines).strip()
 
     # Fallback: first 10 non-empty lines.
-    non_empty = [l for l in lines if l.strip()][:10]
+    non_empty = [line for line in lines if line.strip()][:10]
     return "\n".join(non_empty)
 
 
 async def run_pipeline(opts: RunOptions, config: CouncilConfig) -> Path:
     """Execute the full 4-round pipeline and return the run directory path."""
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(UTC)
     repo_root = find_repo_root()
     verbose = opts.verbose
 
@@ -268,5 +267,5 @@ def _finalize_manifest(
     start_time: datetime,
 ) -> None:
     """Write the manifest with timing info."""
-    end_time = datetime.now(timezone.utc)
+    end_time = datetime.now(UTC)
     write_manifest(run_dir, opts, config, ctx, rounds, start_time, end_time)
