@@ -324,6 +324,53 @@ def _include_file(
     sections.append((label, content, priority, src))
 
 
+def _truncate_fenced_diff(label: str, max_total_bytes: int) -> tuple[str, bool]:
+    """Truncate a fenced diff section while preserving header + fences.
+
+    Expects label in the form::
+
+        ## Section Title
+        ```diff
+        <diff body>
+        ```
+
+    Truncates only the body, keeping opening/closing fences intact.
+    Falls back to plain truncation for non-fenced content.
+    """
+    fence_open = "```diff\n"
+    fence_close = "\n```"
+
+    open_idx = label.find(fence_open)
+    if open_idx == -1:
+        # Not a fenced diff — fall back to plain truncation.
+        return _truncate_content(label, max_total_bytes)
+
+    header = label[: open_idx + len(fence_open)]
+    rest = label[open_idx + len(fence_open) :]
+
+    # Find the last closing fence.
+    close_idx = rest.rfind("```")
+    if close_idx == -1:
+        body = rest
+        closing = fence_close
+    else:
+        body = rest[:close_idx]
+        closing = rest[close_idx:]  # preserve "```" and anything after
+
+    header_bytes = len(header.encode("utf-8", errors="replace"))
+    closing_bytes = len(closing.encode("utf-8", errors="replace"))
+    overhead = header_bytes + closing_bytes
+
+    if overhead >= max_total_bytes:
+        # Budget too small even for fences — return minimal stub.
+        stub = header + "(truncated)" + closing
+        return stub, True
+
+    body_budget = max_total_bytes - overhead
+    truncated_body, was_truncated = _truncate_content(body, body_budget)
+    return header + truncated_body + closing, was_truncated
+
+
 def _enforce_budget(
     sections: list[Section],
     max_bytes: int,
@@ -334,7 +381,9 @@ def _enforce_budget(
     1. env/tree (priority ~5-10)
     2. glob files (priority ~30)
     3. diff-included files (priority ~40)
-    4. truncate diffs (keep at least 120 KB)
+    4. truncate diffs (prefer keeping at least 120 KB, but respect max_bytes)
+
+    After all passes the total rendered context is guaranteed <= max_bytes.
 
     Updates the linked ContextSource objects to reflect what was
     actually dropped or truncated.
@@ -366,16 +415,41 @@ def _enforce_budget(
     for idx in sorted(to_remove, reverse=True):
         sections.pop(idx)
 
-    # If still over budget, truncate diffs.
+    # If still over budget, truncate diff sections.
     if _total() > max_bytes:
-        min_diff_bytes = 120 * 1024
+        # Preferred minimum per diff, but never more than total budget.
+        min_diff_bytes = min(120 * 1024, max_bytes)
+
         for i, (label, content, priority, src) in enumerate(sections):
             if priority >= 85 and _total() > max_bytes:
-                # Keep at least min_diff_bytes.
-                keep = max(min_diff_bytes, max_bytes - _total() + len(label.encode()))
-                truncated_label, was_truncated = _truncate_content(label, keep)
+                label_size = len(label.encode())
+                keep = max(min_diff_bytes, max_bytes - _total() + label_size)
+                truncated_label, was_truncated = _truncate_fenced_diff(label, keep)
                 sections[i] = (truncated_label, content, priority, src)
-                # Update source metadata.
                 if was_truncated and src is not None:
                     src.truncated = True
                     src.included_size = len(truncated_label.encode())
+
+    # Final guarantee: if still over budget (e.g. multiple large diffs each
+    # kept at min_diff_bytes, or non-diff sections still too large), force
+    # proportional truncation until we fit.
+    while _total() > max_bytes and sections:
+        current_total = _total()
+        scale = max_bytes / current_total if current_total > 0 else 1.0
+        made_progress = False
+        for i, (label, content, priority, src) in enumerate(sections):
+            label_bytes = len(label.encode())
+            target = int(label_bytes * scale)
+            if target < label_bytes:
+                if priority >= 85:
+                    new_label, was_truncated = _truncate_fenced_diff(label, target)
+                else:
+                    new_label, was_truncated = _truncate_content(label, target)
+                if len(new_label.encode()) < label_bytes:
+                    made_progress = True
+                    sections[i] = (new_label, content, priority, src)
+                    if src is not None:
+                        src.truncated = True
+                        src.included_size = len(new_label.encode())
+        if not made_progress:
+            break

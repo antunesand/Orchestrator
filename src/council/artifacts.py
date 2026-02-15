@@ -150,12 +150,13 @@ def write_manifest(
         },
     }
 
-    # Tool configs (with redacted env).
+    # Tool configs (with redacted env, command, and extra_args).
     for name, tcfg in config.tools.items():
+        redacted_cmd = _redact_command(tcfg.command + tcfg.extra_args)
         manifest["tools"][name] = {
-            "command": tcfg.command,
+            "command": redacted_cmd[: len(tcfg.command)],
             "input_mode": tcfg.input_mode.value,
-            "extra_args": tcfg.extra_args,
+            "extra_args": redacted_cmd[len(tcfg.command) :],
             "env": redact_env(tcfg.env),
         }
 
@@ -180,9 +181,18 @@ def write_manifest(
 
 _SENSITIVE_KEYWORDS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
 
+# Short flags known to carry secrets (e.g. curl -k, various CLIs using -t).
+_SENSITIVE_SHORT_FLAGS = frozenset({"-k", "-t"})
+
 
 def _is_sensitive_flag(arg: str) -> bool:
-    """Check whether a CLI flag name looks like it carries a secret."""
+    """Check whether a CLI flag name looks like it carries a secret.
+
+    Matches long flags containing KEY/TOKEN/SECRET/PASSWORD/CREDENTIAL,
+    and an explicit allowlist of short flags (``-k``, ``-t``).
+    """
+    if arg in _SENSITIVE_SHORT_FLAGS:
+        return True
     upper = arg.lstrip("-").upper()
     return any(kw in upper for kw in _SENSITIVE_KEYWORDS)
 
@@ -191,9 +201,9 @@ def _redact_command(cmd: list[str]) -> list[str]:
     """Redact potentially sensitive arguments from command lists.
 
     Handles:
-    - ``--api-key sk-...``  (flag + separate value)
+    - ``--api-key sk-...``  (long flag containing KEY/TOKEN/SECRET/PASSWORD/CREDENTIAL)
     - ``--api-key=sk-...``  (flag=value in one arg)
-    - ``-k sk-...``         (short flag + separate value)
+    - ``-k sk-...``         (short flag from sensitive allowlist: -k, -t)
     """
     redacted: list[str] = []
     skip_next = False
