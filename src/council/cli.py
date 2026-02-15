@@ -249,7 +249,7 @@ def _get_example_config_text() -> str:
         ref = importlib.resources.files("council").parent.parent / ".council.yml.example"
         return ref.read_text(encoding="utf-8")
     except Exception:
-        # Hardcoded minimal fallback.
+        # Hardcoded minimal fallback — keep in sync with CouncilConfig.defaults().
         return (
             "# Council CLI configuration\n"
             "# See README.md for full documentation.\n"
@@ -257,12 +257,18 @@ def _get_example_config_text() -> str:
             "  claude:\n"
             '    command: ["claude"]\n'
             '    input_mode: "stdin"\n'
-            '    extra_args: ["-p"]\n'
+            "    extra_args:\n"
+            '      - "-p"\n'
+            '      - "Use the piped input as the full task instructions.'
+            ' Produce the best possible answer."\n'
             "    env: {}\n"
             "  codex:\n"
             '    command: ["codex", "exec"]\n'
             '    input_mode: "stdin"\n'
-            '    extra_args: ["--ask-for-approval", "never", "--sandbox", "read-only", "-"]\n'
+            '    extra_args: ["--ask-for-approval", "never",'
+            ' "--sandbox", "read-only",'
+            ' "--color", "never",'
+            ' "-"]\n'
             "    env: {}\n"
         )
 
@@ -384,7 +390,7 @@ def doctor() -> None:
     else:
         typer.echo("Some checks failed. See suggestions above.")
         typer.echo("Tips:")
-        typer.echo("  - If claude doesn't work in -p mode, test: echo test | claude -p")
+        typer.echo('  - If claude doesn\'t work in -p mode, test: echo test | claude -p "explain"')
         typer.echo("  - If codex exec isn't available, update Codex CLI")
         typer.echo("  - If codex auth fails, run: codex login")
         raise typer.Exit(1)
