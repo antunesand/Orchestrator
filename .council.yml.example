@@ -1,0 +1,29 @@
+# Council CLI configuration
+# Copy this file to .council.yml in your repo root or ~/.council.yml
+#
+# See README.md for full documentation.
+
+tools:
+  claude:
+    description: "Claude Code CLI"
+    command: ["claude"]
+    input_mode: "stdin"          # stdin | file
+    prompt_file_arg: null        # if input_mode=file, e.g. "--prompt-file"
+    extra_args: ["-p"]           # extra args appended to command
+    env: {}                      # additional env vars
+
+  codex:
+    description: "Codex CLI"
+    command: ["codex"]
+    input_mode: "stdin"
+    prompt_file_arg: null
+    extra_args: []
+    env: {}
+
+  # Example: add a third tool
+  # gemini:
+  #   description: "Gemini CLI"
+  #   command: ["gemini"]
+  #   input_mode: "stdin"
+  #   extra_args: []
+  #   env: {}
