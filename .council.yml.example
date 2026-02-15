@@ -1,5 +1,10 @@
 # Council CLI configuration
 # Copy this file to .council.yml in your repo root or ~/.council.yml
+# Run `council init` to create this file automatically.
+#
+# IMPORTANT: Do NOT put API keys or secrets in this file.
+# Council shells out to CLI tools that handle their own authentication.
+# If you're signed into Claude Code or Codex CLI, no keys are needed here.
 #
 # See README.md for full documentation.
 
@@ -8,9 +13,9 @@ tools:
     description: "Claude Code CLI"
     command: ["claude"]
     input_mode: "stdin"          # stdin | file
-    prompt_file_arg: null        # if input_mode=file, e.g. "--prompt-file"
-    extra_args: ["-p"]           # recommended for Claude Code CLI (pipe mode)
-    env: {}                      # additional env vars
+    prompt_file_arg: null        # only needed if input_mode=file
+    extra_args: []               # add ["-p"] if your Claude Code CLI requires pipe mode
+    env: {}                      # do NOT put API keys here
 
   codex:
     description: "Codex CLI"

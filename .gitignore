@@ -31,3 +31,11 @@ runs/
 .env
 *.pem
 *.key
+
+# Council config (may contain tokens/paths)
+.council.yml
+council.yml
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/

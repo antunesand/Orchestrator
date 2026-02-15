@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import tempfile
 import time
@@ -37,12 +38,11 @@ async def run_tool(
 
     if config.input_mode == InputMode.FILE:
         # Write prompt to a temporary file.
-        tmp = tempfile.NamedTemporaryFile(
+        with tempfile.NamedTemporaryFile(
             mode="w", suffix=".md", delete=False, encoding="utf-8"
-        )
-        tmp.write(prompt)
-        tmp.close()
-        tmp_path = Path(tmp.name)
+        ) as tmp:
+            tmp.write(prompt)
+            tmp_path = Path(tmp.name)
         if config.prompt_file_arg:
             cmd.extend([config.prompt_file_arg, str(tmp_path)])
         else:
@@ -68,13 +68,13 @@ async def run_tool(
             )
             exit_code = proc.returncode
             timed_out = False
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             try:
                 stdout_bytes, stderr_bytes = await asyncio.wait_for(
                     proc.communicate(), timeout=5
                 )
-            except (asyncio.TimeoutError, ProcessLookupError):
+            except (TimeoutError, ProcessLookupError):
                 stdout_bytes = b""
                 stderr_bytes = b""
             exit_code = None
@@ -105,10 +105,8 @@ async def run_tool(
     finally:
         # Clean up temp file.
         if tmp_path is not None:
-            try:
+            with contextlib.suppress(OSError):
                 tmp_path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
     elapsed = time.monotonic() - start
 
@@ -142,7 +140,7 @@ async def run_tools_parallel(
     results: dict[str, ToolResult] = {}
     gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
 
-    for name, result in zip(tasks.keys(), gathered):
+    for name, result in zip(tasks.keys(), gathered, strict=False):
         if isinstance(result, Exception):
             results[name] = ToolResult(
                 tool_name=name,

@@ -75,7 +75,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     Returns an empty dict on parse errors (with a warning to stderr).
     """
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
     except yaml.YAMLError as exc:
         print(

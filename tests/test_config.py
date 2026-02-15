@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from council.config import CouncilConfig, load_config, _load_yaml
+from council.config import CouncilConfig, _load_yaml, load_config
 
 
 class TestLoadYamlErrors:

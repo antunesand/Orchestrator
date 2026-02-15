@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 from council.artifacts import _redact_command, create_run_dir, save_final, save_round0, save_task, write_manifest
 from council.config import CouncilConfig
 from council.types import (
-    ContextSource,
     GatheredContext,
-    Mode,
     RoundResult,
     RunOptions,
     ToolResult,
@@ -124,8 +121,8 @@ class TestManifest:
             },
         )
 
-        start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        end = datetime(2025, 1, 1, 12, 5, 0, tzinfo=timezone.utc)
+        start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+        end = datetime(2025, 1, 1, 12, 5, 0, tzinfo=UTC)
 
         write_manifest(run_dir, basic_opts, config, ctx, [r0], start, end)
 
@@ -223,7 +220,6 @@ class TestManifestToolConfigRedaction:
     def test_extra_args_secret_redacted_in_manifest(self, basic_opts: RunOptions):
         """extra_args containing --api-key=sk-... must be redacted in manifest."""
         from council.config import CouncilConfig, ToolConfig
-        from council.types import InputMode
 
         config = CouncilConfig(tools={
             "claude": ToolConfig(
@@ -233,8 +229,8 @@ class TestManifestToolConfigRedaction:
         })
         run_dir = create_run_dir(basic_opts)
         ctx = GatheredContext(text="ctx", sources=[], total_size=3)
-        start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        end = datetime(2025, 1, 1, 12, 1, 0, tzinfo=timezone.utc)
+        start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+        end = datetime(2025, 1, 1, 12, 1, 0, tzinfo=UTC)
         write_manifest(run_dir, basic_opts, config, ctx, [], start, end)
 
         data = json.loads((run_dir / "manifest.json").read_text())
@@ -257,8 +253,8 @@ class TestManifestToolConfigRedaction:
         })
         run_dir = create_run_dir(basic_opts)
         ctx = GatheredContext(text="ctx", sources=[], total_size=3)
-        start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        end = datetime(2025, 1, 1, 12, 1, 0, tzinfo=timezone.utc)
+        start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+        end = datetime(2025, 1, 1, 12, 1, 0, tzinfo=UTC)
         write_manifest(run_dir, basic_opts, config, ctx, [], start, end)
 
         data = json.loads((run_dir / "manifest.json").read_text())

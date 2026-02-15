@@ -1,6 +1,6 @@
 """Tests for diff extraction from LLM output."""
 
-from council.diff_extract import extract_diffs, combine_diffs, extract_and_save
+from council.diff_extract import combine_diffs, extract_and_save, extract_diffs
 
 
 class TestExtractDiffs:

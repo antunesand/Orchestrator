@@ -6,7 +6,7 @@ import json
 import os
 import re
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from council.config import CouncilConfig, redact_env
@@ -26,7 +26,7 @@ def create_run_dir(opts: RunOptions) -> Path:
     Uses microsecond-precision timestamp plus a short random suffix
     to avoid collisions from rapid sequential invocations.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     slug = _make_slug(opts.task)
     # Include microseconds and a 4-hex random suffix for uniqueness.
     rand_suffix = os.urandom(2).hex()

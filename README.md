@@ -23,7 +23,10 @@ python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -e .
 
-# Or install dev dependencies for testing
+# Or with pipx (no venv needed)
+pipx install -e .
+
+# Or install dev dependencies for testing and linting
 pip install -e ".[dev]"
 ```
 
@@ -38,24 +41,42 @@ You need at least one of these CLI tools installed and authenticated:
 
 Council works best with both, but will gracefully degrade to a single tool if one is unavailable.
 
+## Authentication
+
+**Council CLI does not require API keys.** It shells out to `claude` and `codex` CLI tools, which handle their own authentication.
+
+If you're signed into the CLIs via subscription (e.g., Claude Max or ChatGPT Pro), council will use your subscription — no API keys needed.
+
+> **Warning — API key environment variables:**
+> If you set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in your shell or `.council.yml` env, the respective CLI tool may use API billing instead of your subscription login. Only set these if you intend to use API-based billing.
+
+> **Warning — do not commit secrets:**
+> Never put API keys in `.council.yml`. The `.gitignore` excludes `.council.yml` and `council.yml` by default, but double-check your repo. Use `council init` to set this up safely.
+
 ## Quick Start
 
 ```bash
-# Fix a bug (auto-gathers git context)
+# 1. Initialize config (creates .council.yml + updates .gitignore)
+council init
+
+# 2. Verify your setup
+council doctor
+
+# 3. Fix a bug (auto-gathers git context)
 council fix "TypeError in auth handler: 'NoneType' has no attribute 'email'"
 
-# Implement a feature with specific files included
+# 4. Implement a feature with specific files included
 council feature --include src/auth.py --include src/models/user.py \
   "Add rate limiting to the login endpoint"
 
-# Review staged changes
+# 5. Review staged changes
 council review --diff staged \
   "Review these changes for correctness, security issues, and missing tests"
 
-# Read task from a file
+# 6. Read task from a file
 council fix --task-file bug_report.md
 
-# Dry run: see what prompts would be sent without calling tools
+# 7. Dry run: see what prompts would be sent without calling tools
 council fix --dry-run --print-prompts "Fix the broken test"
 ```
 
@@ -68,8 +89,10 @@ council fix --dry-run --print-prompts "Fix the broken test"
 | `council fix "..."` | Fix bugs and errors | `--diff all` |
 | `council feature "..."` | Implement new functionality | `--diff all` |
 | `council review "..."` | Review code changes | `--diff staged` |
+| `council init` | Create `.council.yml` and update `.gitignore` | — |
+| `council doctor` | Check tool availability and configuration | — |
 
-### Options
+### Options (for fix/feature/review)
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -99,10 +122,12 @@ Council looks for configuration in this order:
 4. `~/.council.yml` in your home directory
 5. Built-in defaults
 
+Run `council init` to generate a starter config from the bundled template.
+
 ### Sample `.council.yml`
 
 The built-in defaults use bare `claude` and `codex` commands with no extra flags.
-Most users will want to add `-p` for Claude Code CLI (pipe/print mode):
+If your Claude Code CLI requires pipe mode, add `-p` to `extra_args`:
 
 ```yaml
 tools:
@@ -111,8 +136,8 @@ tools:
     command: ["claude"]
     input_mode: "stdin"        # stdin or file
     prompt_file_arg: null      # if input_mode=file, e.g. "--prompt-file"
-    extra_args: ["-p"]         # recommended for Claude Code CLI
-    env: {}                    # additional env vars
+    extra_args: []             # add ["-p"] if your Claude Code CLI requires pipe mode
+    env: {}                    # do NOT put API keys here
 
   codex:
     description: "Codex CLI"
@@ -124,6 +149,8 @@ tools:
 ```
 
 > **Note:** If your config file has a syntax error, council prints a warning and falls back to defaults.
+
+> **Note:** You only need to specify the fields you want to change. Omitted fields for known tools (`claude`, `codex`) inherit their correct defaults — e.g., codex always defaults to `command: ["codex"]`, not `["claude"]`.
 
 ### Input Modes
 
@@ -139,8 +166,6 @@ tools:
   claude:
     command: ["/usr/local/bin/claude"]
     extra_args: ["-p", "--no-color"]
-    env:
-      ANTHROPIC_API_KEY: "sk-..."
 ```
 
 If your tool requires file-based input:
@@ -190,6 +215,8 @@ runs/2025-06-15_143022_fix_broken_auth/
     summary.md           # Short summary
 ```
 
+Commands in `manifest.json` are automatically redacted: flags containing KEY, TOKEN, SECRET, PASSWORD, or CREDENTIAL (and short flags `-k`, `-t`) have their values replaced with `***REDACTED***`. Tool config `command` and `extra_args` are also redacted in the manifest.
+
 ## Context Gathering
 
 When `--context auto` is set (the default) and you're in a git repo, council automatically collects:
@@ -216,16 +243,23 @@ If you explicitly `--include` a sensitive file, council prints a warning but inc
   1. Repo tree snapshot
   2. Glob-included files
   3. Diff-included files
-  4. Diffs (truncated, keeping at least 120 KB)
+  4. Diffs (truncated, keeping up to 120 KB per diff when possible, but always respecting the total `--max-context-kb` budget)
 
-## Testing
+## Development
 
 ```bash
 pip install -e ".[dev]"
+
+# Run tests (all use mocked subprocesses — no real LLM calls)
 pytest
+
+# Lint
+ruff check .
 ```
 
-Tests use mocked subprocesses — no real LLM calls are made.
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ## Examples
 

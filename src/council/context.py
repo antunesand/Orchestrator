@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import fnmatch
 import glob as globmod
-import os
 import platform
 import subprocess
 import sys
@@ -398,7 +397,7 @@ def _enforce_budget(
     indexed = sorted(enumerate(sections), key=lambda x: x[1][2])
 
     to_remove: list[int] = []
-    for idx, (label, content, priority, src) in indexed:
+    for idx, (_label, _content, priority, src) in indexed:
         if _total() <= max_bytes:
             break
         # Don't drop diffs below 120 KB.
