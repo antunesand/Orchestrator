@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -20,12 +21,26 @@ def _make_slug(task: str) -> str:
 
 
 def create_run_dir(opts: RunOptions) -> Path:
-    """Create and return the run directory for this invocation."""
+    """Create and return a unique run directory for this invocation.
+
+    Uses microsecond-precision timestamp plus a short random suffix
+    to avoid collisions from rapid sequential invocations.
+    """
     now = datetime.now(timezone.utc)
     slug = _make_slug(opts.task)
-    dirname = f"{now.strftime('%Y-%m-%d_%H%M%S')}_{slug}"
+    # Include microseconds and a 4-hex random suffix for uniqueness.
+    rand_suffix = os.urandom(2).hex()
+    dirname = f"{now.strftime('%Y-%m-%d_%H%M%S')}_{now.strftime('%f')}_{rand_suffix}_{slug}"
     run_dir = opts.outdir / dirname
-    run_dir.mkdir(parents=True, exist_ok=True)
+
+    # Use exist_ok=False to detect collision; retry once if needed.
+    try:
+        run_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
+        rand_suffix = os.urandom(4).hex()
+        dirname = f"{now.strftime('%Y-%m-%d_%H%M%S')}_{now.strftime('%f')}_{rand_suffix}_{slug}"
+        run_dir = opts.outdir / dirname
+        run_dir.mkdir(parents=True, exist_ok=True)
 
     # Create subdirectories.
     (run_dir / "rounds" / "0_generate").mkdir(parents=True, exist_ok=True)
@@ -163,25 +178,43 @@ def write_manifest(
     )
 
 
+_SENSITIVE_KEYWORDS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
+
+
+def _is_sensitive_flag(arg: str) -> bool:
+    """Check whether a CLI flag name looks like it carries a secret."""
+    upper = arg.lstrip("-").upper()
+    return any(kw in upper for kw in _SENSITIVE_KEYWORDS)
+
+
 def _redact_command(cmd: list[str]) -> list[str]:
-    """Redact potentially sensitive arguments from command lists."""
-    redacted = []
+    """Redact potentially sensitive arguments from command lists.
+
+    Handles:
+    - ``--api-key sk-...``  (flag + separate value)
+    - ``--api-key=sk-...``  (flag=value in one arg)
+    - ``-k sk-...``         (short flag + separate value)
+    """
+    redacted: list[str] = []
     skip_next = False
     for arg in cmd:
         if skip_next:
-            redacted.append("***")
+            redacted.append("***REDACTED***")
             skip_next = False
             continue
-        upper = arg.upper()
-        if any(kw in upper for kw in ("KEY", "TOKEN", "SECRET", "PASSWORD")):
-            redacted.append("***")
-        elif arg.startswith("--") and "=" in arg:
+
+        if arg.startswith("-") and "=" in arg:
+            # --flag=value form.
             key, _, _ = arg.partition("=")
-            ku = key.upper()
-            if any(kw in ku for kw in ("KEY", "TOKEN", "SECRET", "PASSWORD")):
-                redacted.append(f"{key}=***")
+            if _is_sensitive_flag(key):
+                redacted.append(f"{key}=***REDACTED***")
             else:
                 redacted.append(arg)
+        elif arg.startswith("-") and _is_sensitive_flag(arg):
+            # --api-key  or  -k  (value follows as next arg).
+            redacted.append(arg)
+            skip_next = True
         else:
             redacted.append(arg)
+
     return redacted

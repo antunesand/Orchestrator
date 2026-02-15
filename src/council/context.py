@@ -37,6 +37,9 @@ BINARY_EXTENSIONS = {
     ".sqlite", ".db",
 }
 
+# Type alias for a context section: (label, content, priority, optional source ref).
+Section = tuple[str, str, int, ContextSource | None]
+
 
 def _is_binary(path: Path) -> bool:
     """Heuristic check if a file is binary."""
@@ -52,12 +55,19 @@ def _is_binary(path: Path) -> bool:
 
 
 def _matches_exclude(name: str) -> bool:
-    """Check if a filename matches any always-exclude pattern."""
-    for pattern in ALWAYS_EXCLUDE:
-        if fnmatch.fnmatch(name, pattern):
-            return True
-        if fnmatch.fnmatch(os.path.basename(name), pattern):
-            return True
+    """Check if a filename or any path component matches an always-exclude pattern.
+
+    Handles nested paths like 'node_modules/react/index.js' by checking
+    each component of the path against all exclude patterns.
+    """
+    # Normalise separators so Windows paths work too.
+    normalised = name.replace("\\", "/")
+    parts = normalised.split("/")
+
+    for part in parts:
+        for pattern in ALWAYS_EXCLUDE:
+            if fnmatch.fnmatch(part, pattern):
+                return True
     return False
 
 
@@ -118,10 +128,44 @@ def _read_file_safe(path: Path, max_file_kb: int) -> tuple[str, int, bool]:
     return text, original_size, False
 
 
+def _collect_changed_files(repo_root: Path) -> list[str]:
+    """Build changed file list as union of staged, unstaged, and untracked files.
+
+    Works even in repos with no commits.
+    """
+    changed: set[str] = set()
+
+    # Staged changes.
+    staged = _run_git(["diff", "--name-only", "--staged"], cwd=repo_root)
+    if staged:
+        for line in staged.strip().splitlines():
+            if line.strip():
+                changed.add(line.strip())
+
+    # Unstaged changes (against index; works with no commits).
+    unstaged = _run_git(["diff", "--name-only"], cwd=repo_root)
+    if unstaged:
+        for line in unstaged.strip().splitlines():
+            if line.strip():
+                changed.add(line.strip())
+
+    # Untracked files from git status --porcelain.
+    status = _run_git(["status", "--porcelain"], cwd=repo_root)
+    if status:
+        for line in status.strip().splitlines():
+            if line.startswith("?? "):
+                # Strip the "?? " prefix; path may be quoted for special chars.
+                path = line[3:].strip().strip('"')
+                if path:
+                    changed.add(path)
+
+    return sorted(changed)
+
+
 def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
     """Gather all context according to run options."""
     ctx = GatheredContext()
-    sections: list[tuple[str, str, int]] = []  # (label, content, priority) lower=drop first
+    sections: list[Section] = []
     sources: list[ContextSource] = []
 
     if opts.context_mode == ContextMode.NONE:
@@ -140,7 +184,7 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
                 included_size=len(status.encode()),
             )
             sources.append(src)
-            sections.append(("## Git Status\n```\n" + status + "```", status, 50))
+            sections.append(("## Git Status\n```\n" + status + "```", status, 50, src))
 
         # Diffs
         if opts.diff_scope in (DiffScope.STAGED, DiffScope.ALL):
@@ -152,7 +196,7 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
                     included_size=len(diff.encode()),
                 )
                 sources.append(src)
-                sections.append(("## Staged Diff\n```diff\n" + diff + "```", diff, 90))
+                sections.append(("## Staged Diff\n```diff\n" + diff + "```", diff, 90, src))
 
         if opts.diff_scope in (DiffScope.UNSTAGED, DiffScope.ALL):
             diff = _run_git(["diff"], cwd=repo_root)
@@ -163,14 +207,10 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
                     included_size=len(diff.encode()),
                 )
                 sources.append(src)
-                sections.append(("## Unstaged Diff\n```diff\n" + diff + "```", diff, 85))
+                sections.append(("## Unstaged Diff\n```diff\n" + diff + "```", diff, 85, src))
 
         # Changed files list (for --include-from-diff).
-        changed_out = _run_git(["diff", "--name-only", "HEAD"], cwd=repo_root)
-        if changed_out:
-            ctx.changed_files = [
-                f.strip() for f in changed_out.strip().splitlines() if f.strip()
-            ]
+        ctx.changed_files = _collect_changed_files(repo_root)
 
         # Repo tree snapshot (lightweight).
         tree = _run_git(["ls-files"], cwd=repo_root)
@@ -186,7 +226,7 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
                 included_size=len(summary.encode()),
             )
             sources.append(src)
-            sections.append(("## Repository File Tree\n```\n" + summary + "\n```", summary, 10))
+            sections.append(("## Repository File Tree\n```\n" + summary + "\n```", summary, 10, src))
 
     # --- Environment info ---
     env_info = (
@@ -200,7 +240,7 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
         included_size=len(env_info.encode()),
     )
     sources.append(src)
-    sections.append(("## Environment\n```\n" + env_info + "\n```", env_info, 5))
+    sections.append(("## Environment\n```\n" + env_info + "\n```", env_info, 5, src))
 
     # --- Explicit file includes ---
     for include_path in opts.include_paths:
@@ -220,10 +260,10 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
 
     # --- Budget enforcement ---
     max_bytes = opts.max_context_kb * 1024
-    _enforce_budget(sections, sources, max_bytes)
+    _enforce_budget(sections, max_bytes)
 
     # Assemble final text.
-    assembled = "\n\n".join(label for label, _, _ in sections)
+    assembled = "\n\n".join(label for label, _, _, _ in sections)
     ctx.text = assembled
     ctx.sources = sources
     ctx.total_size = len(assembled.encode())
@@ -233,7 +273,7 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
 def _include_file(
     path: Path,
     opts: RunOptions,
-    sections: list[tuple[str, str, int]],
+    sections: list[Section],
     sources: list[ContextSource],
     priority: int,
     explicit: bool,
@@ -248,10 +288,9 @@ def _include_file(
     if _matches_exclude(name) or _matches_exclude(path.name):
         if explicit:
             # Warn but still include for explicit includes.
-            import sys as _sys
             print(
                 f"WARNING: Including sensitive file '{name}' (matched exclude pattern)",
-                file=_sys.stderr,
+                file=sys.stderr,
             )
         else:
             sources.append(ContextSource(
@@ -282,24 +321,26 @@ def _include_file(
     sources.append(src)
 
     label = f"## File: {name}\n```\n{content}\n```"
-    sections.append((label, content, priority))
+    sections.append((label, content, priority, src))
 
 
 def _enforce_budget(
-    sections: list[tuple[str, str, int]],
-    sources: list[ContextSource],
+    sections: list[Section],
     max_bytes: int,
 ) -> None:
     """Drop lowest-priority items until total fits within budget.
 
-    Drop order (by source_type):
-    1. tree (priority ~10)
+    Drop order (by priority, ascending):
+    1. env/tree (priority ~5-10)
     2. glob files (priority ~30)
     3. diff-included files (priority ~40)
     4. truncate diffs (keep at least 120 KB)
+
+    Updates the linked ContextSource objects to reflect what was
+    actually dropped or truncated.
     """
     def _total() -> int:
-        return sum(len(label.encode()) for label, _, _ in sections)
+        return sum(len(label.encode()) for label, _, _, _ in sections)
 
     if _total() <= max_bytes:
         return
@@ -308,13 +349,18 @@ def _enforce_budget(
     indexed = sorted(enumerate(sections), key=lambda x: x[1][2])
 
     to_remove: list[int] = []
-    for idx, (label, content, priority) in indexed:
+    for idx, (label, content, priority, src) in indexed:
         if _total() <= max_bytes:
             break
         # Don't drop diffs below 120 KB.
         if priority >= 85:  # diffs
             continue
         to_remove.append(idx)
+        # Mark the source as dropped.
+        if src is not None:
+            src.excluded = True
+            src.included_size = 0
+            src.reason = "dropped due to context budget"
 
     # Remove in reverse order to maintain indices.
     for idx in sorted(to_remove, reverse=True):
@@ -323,9 +369,13 @@ def _enforce_budget(
     # If still over budget, truncate diffs.
     if _total() > max_bytes:
         min_diff_bytes = 120 * 1024
-        for i, (label, content, priority) in enumerate(sections):
+        for i, (label, content, priority, src) in enumerate(sections):
             if priority >= 85 and _total() > max_bytes:
                 # Keep at least min_diff_bytes.
                 keep = max(min_diff_bytes, max_bytes - _total() + len(label.encode()))
                 truncated_label, was_truncated = _truncate_content(label, keep)
-                sections[i] = (truncated_label, content, priority)
+                sections[i] = (truncated_label, content, priority, src)
+                # Update source metadata.
+                if was_truncated and src is not None:
+                    src.truncated = True
+                    src.included_size = len(truncated_label.encode())

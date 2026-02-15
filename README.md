@@ -86,7 +86,8 @@ council fix --dry-run --print-prompts "Fix the broken test"
 | `--tools LIST` | `claude,codex` | Comma-separated tool names |
 | `--dry-run` | `false` | Write prompts/context only, don't invoke tools |
 | `--print-prompts` | `false` | Print prompts to terminal (still saves to files) |
-| `--verbose` | `false` | Verbose output |
+| `--verbose` | `false` | Verbose output (context stats, prompt sizes, command details) |
+| `--version` | — | Show version and exit |
 | `--config PATH` | — | Path to config file |
 
 ## Configuration
@@ -100,6 +101,9 @@ Council looks for configuration in this order:
 
 ### Sample `.council.yml`
 
+The built-in defaults use bare `claude` and `codex` commands with no extra flags.
+Most users will want to add `-p` for Claude Code CLI (pipe/print mode):
+
 ```yaml
 tools:
   claude:
@@ -107,7 +111,7 @@ tools:
     command: ["claude"]
     input_mode: "stdin"        # stdin or file
     prompt_file_arg: null      # if input_mode=file, e.g. "--prompt-file"
-    extra_args: ["-p"]         # appended to command
+    extra_args: ["-p"]         # recommended for Claude Code CLI
     env: {}                    # additional env vars
 
   codex:
@@ -118,6 +122,8 @@ tools:
     extra_args: []
     env: {}
 ```
+
+> **Note:** If your config file has a syntax error, council prints a warning and falls back to defaults.
 
 ### Input Modes
 
@@ -196,10 +202,10 @@ When `--context auto` is set (the default) and you're in a git repo, council aut
 
 ### File Inclusion Safety
 
-Council **never** includes:
+Council **never** includes (unless explicitly `--include`d):
 - Binary files
 - `.env`, `*.pem`, `*.key`, `id_rsa*`, `credentials*`, `secrets*`, `token*`
-- `node_modules/`, `.git/`
+- Any file under `node_modules/` or `.git/` (nested path detection)
 
 If you explicitly `--include` a sensitive file, council prints a warning but includes it.
 

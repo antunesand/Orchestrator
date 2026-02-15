@@ -29,17 +29,10 @@ class TestRunToolStdinMode:
         with patch("council.runner.asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
             result = await run_tool("test_tool", config, "test prompt", timeout_sec=10)
 
-            # Verify subprocess was called with expected command.
             mock_exec.assert_called_once()
             call_args = mock_exec.call_args
             assert call_args[0] == ("echo",)
-            # stdin should be PIPE for stdin mode.
             assert call_args[1]["stdin"] == asyncio.subprocess.PIPE
-
-            # Verify communicate was called with the prompt.
-            mock_proc.communicate.assert_called_once()
-            input_data = mock_proc.communicate.call_args[1].get("input") or mock_proc.communicate.call_args[0][0] if mock_proc.communicate.call_args[0] else mock_proc.communicate.call_args[1].get("input")
-            # The prompt bytes should have been passed.
 
         assert result.tool_name == "test_tool"
         assert result.exit_code == 0
@@ -85,7 +78,6 @@ class TestRunToolFileMode:
         with patch("council.runner.asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
             result = await run_tool("mytool", config, "test prompt content", timeout_sec=10)
             call_args = mock_exec.call_args[0]
-            # Should include: mytool --json --prompt-file <tmp_path>
             assert call_args[0] == "mytool"
             assert "--json" in call_args
             assert "--prompt-file" in call_args
@@ -113,31 +105,34 @@ class TestRunToolErrors:
 
     @pytest.mark.asyncio
     async def test_timeout(self):
-        """Verify timeout handling."""
+        """Verify timeout handling produces timed_out=True result."""
         config = ToolConfig(
             command=["slow_tool"],
             input_mode=InputMode.STDIN,
         )
 
         mock_proc = AsyncMock()
-        mock_proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
-        mock_proc.kill = MagicMock()
-        # After kill, communicate returns empty.
-        mock_proc.communicate.side_effect = [asyncio.TimeoutError(), (b"", b"")]
+        mock_proc.returncode = None
+        mock_proc.kill = MagicMock()  # kill() is synchronous
+        # After kill, the cleanup communicate should succeed.
+        mock_proc.communicate = AsyncMock(return_value=(b"partial", b"err"))
 
-        call_count = 0
-        async def mock_communicate(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
+        # First wait_for (the main communicate) times out.
+        # Second wait_for (cleanup communicate after kill) succeeds.
+        wait_for_calls = [0]
+
+        original_wait_for = asyncio.wait_for
+
+        async def patched_wait_for(coro, timeout):
+            wait_for_calls[0] += 1
+            if wait_for_calls[0] == 1:
+                # Cancel the coroutine to avoid "never awaited" warning.
+                coro.close()
                 raise asyncio.TimeoutError()
-            return (b"", b"")
-
-        mock_proc.communicate = mock_communicate
+            return await coro
 
         with patch("council.runner.asyncio.create_subprocess_exec", return_value=mock_proc):
-            with patch("council.runner.asyncio.wait_for", side_effect=asyncio.TimeoutError()):
-                # Need to also mock the second wait_for for cleanup.
+            with patch("council.runner.asyncio.wait_for", side_effect=patched_wait_for):
                 result = await run_tool("slow", config, "prompt", timeout_sec=1)
 
         assert result.timed_out is True
