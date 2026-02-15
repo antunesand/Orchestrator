@@ -126,31 +126,44 @@ Run `council init` to generate a starter config from the bundled template.
 
 ### Sample `.council.yml`
 
-The built-in defaults use bare `claude` and `codex` commands with no extra flags.
-If your Claude Code CLI requires pipe mode, add `-p` to `extra_args`:
+The built-in defaults use the recommended automation-friendly invocations for both CLIs.
+Run `council init` to generate a starter config, or copy this:
 
 ```yaml
 tools:
   claude:
-    description: "Claude Code CLI"
+    description: "Claude Code CLI (headless print mode)"
     command: ["claude"]
-    input_mode: "stdin"        # stdin or file
-    prompt_file_arg: null      # if input_mode=file, e.g. "--prompt-file"
-    extra_args: []             # add ["-p"] if your Claude Code CLI requires pipe mode
-    env: {}                    # do NOT put API keys here
+    input_mode: "stdin"
+    extra_args:
+      - "-p"                     # print mode: non-interactive, reads prompt from stdin
+    env: {}                      # do NOT put API keys here
 
   codex:
-    description: "Codex CLI"
-    command: ["codex"]
+    description: "Codex CLI (non-interactive exec)"
+    command: ["codex", "exec"]   # exec subcommand is the automation-friendly mode
     input_mode: "stdin"
-    prompt_file_arg: null
-    extra_args: []
+    extra_args:
+      - "--ask-for-approval"
+      - "never"                  # prevents interactive approval pauses
+      - "--sandbox"
+      - "read-only"              # safer default: no file writes by Codex
+      # IMPORTANT: "-" MUST be last. It tells Codex to read the prompt from stdin.
+      - "-"
     env: {}
 ```
 
+#### Why these flags?
+
+- **Claude `-p`** (print mode): Runs non-interactively, reads prompt from stdin, prints response to stdout. This is the official headless mode for Claude Code CLI.
+- **Codex `exec`**: The automation-friendly subcommand (vs the interactive default). Use `codex exec` for scripted/CI-style runs.
+- **Codex `--ask-for-approval never`**: Prevents Codex from pausing to ask for user confirmation mid-run, which would hang the pipeline.
+- **Codex `--sandbox read-only`**: Safer default — Codex can read your repo but won't write files or run commands.
+- **Codex `-` (last arg)**: This is the PROMPT positional argument. The literal `-` tells Codex to read the prompt from stdin. **It must be the last argument.**
+
 > **Note:** If your config file has a syntax error, council prints a warning and falls back to defaults.
 
-> **Note:** You only need to specify the fields you want to change. Omitted fields for known tools (`claude`, `codex`) inherit their correct defaults — e.g., codex always defaults to `command: ["codex"]`, not `["claude"]`.
+> **Note:** You only need to specify the fields you want to change. Omitted fields for known tools (`claude`, `codex`) inherit their correct defaults — e.g., codex always defaults to `command: ["codex", "exec"]`, not `["claude"]`.
 
 ### Input Modes
 
@@ -159,7 +172,7 @@ tools:
 
 ### Adapting to Your CLI Setup
 
-If your `claude` binary is at a custom path or needs specific flags:
+If your `claude` binary is at a custom path:
 
 ```yaml
 tools:
@@ -173,10 +186,10 @@ If your tool requires file-based input:
 ```yaml
 tools:
   codex:
-    command: ["codex"]
+    command: ["codex", "exec"]
     input_mode: "file"
     prompt_file_arg: "--input"
-    extra_args: ["--model", "gpt-4"]
+    extra_args: ["--ask-for-approval", "never", "--sandbox", "read-only"]
 ```
 
 ## Run Artifacts

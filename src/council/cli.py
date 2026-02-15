@@ -257,12 +257,12 @@ def _get_example_config_text() -> str:
             "  claude:\n"
             '    command: ["claude"]\n'
             '    input_mode: "stdin"\n'
-            "    extra_args: []\n"
+            '    extra_args: ["-p"]\n'
             "    env: {}\n"
             "  codex:\n"
-            '    command: ["codex"]\n'
+            '    command: ["codex", "exec"]\n'
             '    input_mode: "stdin"\n'
-            "    extra_args: []\n"
+            '    extra_args: ["--ask-for-approval", "never", "--sandbox", "read-only", "-"]\n'
             "    env: {}\n"
         )
 
@@ -336,38 +336,66 @@ def doctor() -> None:
     all_ok = True
     for name, tcfg in cfg.tools.items():
         cmd_name = tcfg.command[0] if tcfg.command else "(empty)"
+        full_cmd = list(tcfg.command)
 
-        # Check if command is on PATH.
+        # 1. Check if base command is on PATH.
         found = shutil.which(cmd_name)
         if found is None and Path(cmd_name).is_absolute():
             found = cmd_name if Path(cmd_name).exists() else None
 
-        if found:
-            # Try a quick --version or --help probe.
-            version_str = _probe_tool_version(cmd_name)
-            status = f"OK ({version_str})" if version_str else "OK (found)"
-            typer.echo(f"  {name:12s} {cmd_name:20s} {status}")
-        else:
+        if not found:
             typer.echo(f"  {name:12s} {cmd_name:20s} NOT FOUND")
             all_ok = False
+            continue
+
+        # 2. Probe version/help for the base command.
+        version_str = _probe_tool_version(cmd_name)
+        status = f"OK ({version_str})" if version_str else "OK (found)"
+        typer.echo(f"  {name:12s} {' '.join(full_cmd):20s} {status}")
 
         if tcfg.extra_args:
             typer.echo(f"{'':14s} extra_args: {tcfg.extra_args}")
 
+        # 3. If command has a subcommand (e.g. "codex exec"), validate it.
+        if len(full_cmd) > 1:
+            sub_ok = _check_subcommand(full_cmd)
+            sub_label = " ".join(full_cmd)
+            if sub_ok:
+                typer.echo(f"{'':14s} subcommand '{sub_label}': OK")
+            else:
+                typer.echo(f"{'':14s} subcommand '{sub_label}': FAILED (try `{sub_label} --help`)")
+                all_ok = False
+
+        # 4. Codex-specific: check login status if tool looks like codex.
+        if cmd_name in ("codex",) or (len(full_cmd) > 1 and full_cmd[0] == "codex"):
+            auth_ok = _check_codex_auth()
+            if auth_ok is True:
+                typer.echo(f"{'':14s} codex auth: logged in")
+            elif auth_ok is False:
+                typer.echo(f"{'':14s} codex auth: NOT logged in (run `codex login`)")
+                all_ok = False
+            else:
+                typer.echo(f"{'':14s} codex auth: unknown (could not run `codex login status`)")
+
+    # 5. Suggestions.
     typer.echo("")
     if all_ok:
-        typer.echo("All tools available.")
+        typer.echo("All checks passed.")
     else:
-        typer.echo("Some tools are missing. Install them or update your config.")
+        typer.echo("Some checks failed. See suggestions above.")
+        typer.echo("Tips:")
+        typer.echo("  - If claude doesn't work in -p mode, test: echo test | claude -p")
+        typer.echo("  - If codex exec isn't available, update Codex CLI")
+        typer.echo("  - If codex auth fails, run: codex login")
         raise typer.Exit(1)
 
 
 def _probe_tool_version(cmd: str) -> str | None:
-    """Try to get a version string from a tool (--version, then -h).
+    """Try to get a version string from a tool (--version, then --help).
 
     Returns version text or None. Never calls the tool with a prompt.
     """
-    for flag in ("--version", "-v"):
+    for flag in ("--version", "--help"):
         try:
             result = subprocess.run(
                 [cmd, flag],
@@ -383,6 +411,40 @@ def _probe_tool_version(cmd: str) -> str | None:
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             continue
     return None
+
+
+def _check_subcommand(full_cmd: list[str]) -> bool:
+    """Check if a subcommand exists by running it with --help.
+
+    E.g. ``["codex", "exec", "--help"]``. Returns True if exit code is 0.
+    """
+    try:
+        result = subprocess.run(
+            [*full_cmd, "--help"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _check_codex_auth() -> bool | None:
+    """Check Codex login status via ``codex login status``.
+
+    Returns True if logged in (exit 0), False if not (non-zero), None on error.
+    """
+    try:
+        result = subprocess.run(
+            ["codex", "login", "status"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
 
 
 def app_main() -> None:

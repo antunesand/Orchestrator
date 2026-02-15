@@ -80,8 +80,11 @@ class TestInit:
             runner.invoke(app, ["init"])
 
         content = (tmp_path / ".council.yml").read_text(encoding="utf-8")
-        assert "sk-" not in content
-        assert "API_KEY" not in content.split("env: {}")[0]  # No keys before env
+        # No API key patterns (sk-live-..., sk-ant-..., etc.). "ask-for-approval" is fine.
+        assert "sk-live" not in content
+        assert "sk-ant" not in content
+        assert "ANTHROPIC_API_KEY" not in content
+        assert "OPENAI_API_KEY" not in content
 
 
 class TestEnsureGitignoreEntries:
@@ -112,63 +115,86 @@ class TestEnsureGitignoreEntries:
 class TestDoctor:
     """Tests for `council doctor`."""
 
+    def _patch_doctor(self, tmp_path, which_rv="/usr/bin/fake", version_rv="v1.0",
+                      subcmd_rv=True, auth_rv=True):
+        """Helper returning a combined context manager for doctor patches."""
+        from contextlib import ExitStack
+        from unittest.mock import patch as _patch
+
+        stack = ExitStack()
+        stack.enter_context(_patch("council.cli.find_repo_root", return_value=tmp_path))
+        stack.enter_context(_patch("shutil.which", return_value=which_rv))
+        stack.enter_context(_patch("council.cli._probe_tool_version", return_value=version_rv))
+        stack.enter_context(_patch("council.cli._check_subcommand", return_value=subcmd_rv))
+        stack.enter_context(_patch("council.cli._check_codex_auth", return_value=auth_rv))
+        return stack
+
     def test_shows_version(self, tmp_path: Path):
         """doctor output includes version."""
-        with (
-            patch("council.cli.find_repo_root", return_value=tmp_path),
-            patch("shutil.which", return_value="/usr/bin/claude"),
-            patch("council.cli._probe_tool_version", return_value="claude 1.0"),
-        ):
+        with self._patch_doctor(tmp_path, version_rv="claude 1.0"):
             result = runner.invoke(app, ["doctor"])
-
         assert "council" in result.output
 
     def test_reports_tool_found(self, tmp_path: Path):
         """doctor reports OK when tool is found."""
-        with (
-            patch("council.cli.find_repo_root", return_value=tmp_path),
-            patch("shutil.which", return_value="/usr/bin/fake"),
-            patch("council.cli._probe_tool_version", return_value="v1.0"),
-        ):
+        with self._patch_doctor(tmp_path):
             result = runner.invoke(app, ["doctor"])
-
         assert result.exit_code == 0
         assert "OK" in result.output
-        assert "All tools available" in result.output
+        assert "All checks passed" in result.output
 
     def test_reports_tool_not_found(self, tmp_path: Path):
         """doctor reports NOT FOUND and exits 1 when tools are missing."""
-        with (
-            patch("council.cli.find_repo_root", return_value=tmp_path),
-            patch("shutil.which", return_value=None),
-        ):
+        with self._patch_doctor(tmp_path, which_rv=None):
             result = runner.invoke(app, ["doctor"])
-
         assert result.exit_code == 1
         assert "NOT FOUND" in result.output
-        assert "Some tools are missing" in result.output
+        assert "Some checks failed" in result.output
 
     def test_shows_config_source(self, tmp_path: Path):
         """doctor shows which config file is used."""
         cfg = tmp_path / ".council.yml"
         cfg.write_text("tools:\n  claude:\n    command: ['claude']\n", encoding="utf-8")
-
-        with (
-            patch("council.cli.find_repo_root", return_value=tmp_path),
-            patch("shutil.which", return_value="/usr/bin/claude"),
-            patch("council.cli._probe_tool_version", return_value=None),
-        ):
+        with self._patch_doctor(tmp_path, version_rv=None):
             result = runner.invoke(app, ["doctor"])
-
         assert str(tmp_path) in result.output
 
     def test_shows_defaults_when_no_config(self, tmp_path: Path):
         """doctor shows '(built-in defaults)' when no config file exists."""
-        with (
-            patch("council.cli.find_repo_root", return_value=tmp_path),
-            patch("shutil.which", return_value="/usr/bin/fake"),
-            patch("council.cli._probe_tool_version", return_value=None),
-        ):
+        with self._patch_doctor(tmp_path, version_rv=None):
             result = runner.invoke(app, ["doctor"])
-
         assert "built-in defaults" in result.output
+
+    def test_codex_exec_subcommand_validated(self, tmp_path: Path):
+        """doctor validates the codex exec subcommand."""
+        with self._patch_doctor(tmp_path, subcmd_rv=True):
+            result = runner.invoke(app, ["doctor"])
+        assert "subcommand" in result.output
+        assert result.exit_code == 0
+
+    def test_codex_exec_subcommand_failed(self, tmp_path: Path):
+        """doctor reports failure when codex exec subcommand fails."""
+        with self._patch_doctor(tmp_path, subcmd_rv=False):
+            result = runner.invoke(app, ["doctor"])
+        assert "FAILED" in result.output
+        assert result.exit_code == 1
+
+    def test_codex_auth_logged_in(self, tmp_path: Path):
+        """doctor reports codex auth as logged in when exit 0."""
+        with self._patch_doctor(tmp_path, auth_rv=True):
+            result = runner.invoke(app, ["doctor"])
+        assert "logged in" in result.output
+        assert result.exit_code == 0
+
+    def test_codex_auth_not_logged_in(self, tmp_path: Path):
+        """doctor reports codex auth failure."""
+        with self._patch_doctor(tmp_path, auth_rv=False):
+            result = runner.invoke(app, ["doctor"])
+        assert "NOT logged in" in result.output
+        assert result.exit_code == 1
+
+    def test_codex_auth_unknown(self, tmp_path: Path):
+        """doctor reports 'unknown' when codex login status cannot be run."""
+        with self._patch_doctor(tmp_path, auth_rv=None):
+            result = runner.invoke(app, ["doctor"])
+        assert "unknown" in result.output
