@@ -12,6 +12,7 @@ from council.context import (
     _is_binary,
     _matches_exclude,
     _truncate_content,
+    _truncate_fenced_diff,
     gather_context,
 )
 from council.types import ContextMode, ContextSource, DiffScope, RunOptions, Mode
@@ -228,3 +229,85 @@ class TestCollectChangedFiles:
             files = _collect_changed_files(Path("/fake"))
 
         assert files.count("both.py") == 1
+
+
+class TestBudgetEnforcementTight:
+    """Issue 2: budget enforcement must guarantee total <= max_bytes."""
+
+    def test_tiny_budget_with_large_diffs(self):
+        """With max_bytes=10KB and huge diffs, result must fit in budget."""
+        max_bytes = 10 * 1024  # 10 KB
+        big_diff = "d" * (200 * 1024)  # 200 KB diff body
+        src1 = ContextSource(source_type="diff_staged", original_size=len(big_diff), included_size=len(big_diff))
+        src2 = ContextSource(source_type="diff_unstaged", original_size=len(big_diff), included_size=len(big_diff))
+        sections: list[Section] = [
+            ("## Staged Diff\n```diff\n" + big_diff + "\n```", big_diff, 90, src1),
+            ("## Unstaged Diff\n```diff\n" + big_diff + "\n```", big_diff, 85, src2),
+        ]
+        _enforce_budget(sections, max_bytes=max_bytes)
+        total = sum(len(label.encode()) for label, _, _, _ in sections)
+        assert total <= max_bytes
+
+    def test_single_diff_tiny_budget(self):
+        """Single diff section with very small budget still respects limit."""
+        max_bytes = 500
+        big_diff = "x" * 50000
+        src = ContextSource(source_type="diff_staged", original_size=len(big_diff), included_size=len(big_diff))
+        sections: list[Section] = [
+            ("## Staged Diff\n```diff\n" + big_diff + "\n```", big_diff, 90, src),
+        ]
+        _enforce_budget(sections, max_bytes=max_bytes)
+        total = sum(len(label.encode()) for label, _, _, _ in sections)
+        assert total <= max_bytes
+
+    def test_budget_respected_with_mixed_sections(self):
+        """Mix of diff and non-diff sections respects tight budget."""
+        max_bytes = 2000
+        src_env = ContextSource(source_type="env", original_size=500, included_size=500)
+        src_diff = ContextSource(source_type="diff_staged", original_size=50000, included_size=50000)
+        big_diff = "d" * 50000
+        sections: list[Section] = [
+            ("## Env\n```\n" + "e" * 500 + "\n```", "env", 5, src_env),
+            ("## Staged Diff\n```diff\n" + big_diff + "\n```", big_diff, 90, src_diff),
+        ]
+        _enforce_budget(sections, max_bytes=max_bytes)
+        total = sum(len(label.encode()) for label, _, _, _ in sections)
+        assert total <= max_bytes
+
+
+class TestTruncateFencedDiff:
+    """Issue 3: truncated diff sections must preserve opening and closing fences."""
+
+    def test_fences_preserved_after_truncation(self):
+        """Truncated diff should still have ```diff and closing ```."""
+        body = "+" + "x" * 50000 + "\n-" + "y" * 50000
+        label = "## Staged Diff\n```diff\n" + body + "\n```"
+        truncated, was_truncated = _truncate_fenced_diff(label, 2000)
+        assert was_truncated is True
+        assert "```diff\n" in truncated
+        # Closing fence must be present.
+        assert truncated.rstrip().endswith("```")
+        assert len(truncated.encode()) <= 2000
+
+    def test_small_budget_still_has_fences(self):
+        """Even with very small budget, fences should be intact."""
+        body = "+" + "a" * 10000
+        label = "## Staged Diff\n```diff\n" + body + "\n```"
+        truncated, was_truncated = _truncate_fenced_diff(label, 200)
+        assert "```diff\n" in truncated
+        assert truncated.rstrip().endswith("```")
+
+    def test_no_truncation_when_under_budget(self):
+        """If label fits within budget, return unchanged."""
+        body = "+small change"
+        label = "## Staged Diff\n```diff\n" + body + "\n```"
+        truncated, was_truncated = _truncate_fenced_diff(label, 10000)
+        assert was_truncated is False
+        assert truncated == label
+
+    def test_non_fenced_content_falls_back(self):
+        """Non-fenced content uses plain truncation fallback."""
+        label = "## Plain\n" + "x" * 10000
+        truncated, was_truncated = _truncate_fenced_diff(label, 500)
+        assert was_truncated is True
+        assert len(truncated.encode()) <= 500

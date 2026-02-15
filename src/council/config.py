@@ -139,7 +139,14 @@ def _parse_config(raw: dict[str, Any]) -> CouncilConfig:
     for name, tool_data in tools_raw.items():
         if isinstance(tool_data, dict):
             try:
-                tools[name] = ToolConfig(**tool_data)
+                # For known tools, merge user overrides on top of defaults
+                # so that omitted fields (e.g. command) keep correct values.
+                if name in defaults.tools:
+                    base = defaults.tools[name].model_dump()
+                    base.update(tool_data)
+                    tools[name] = ToolConfig(**base)
+                else:
+                    tools[name] = ToolConfig(**tool_data)
             except (ValidationError, TypeError) as exc:
                 print(
                     f"Warning: invalid config for tool '{name}': {exc}\n"

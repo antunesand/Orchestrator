@@ -63,3 +63,71 @@ class TestDefaults:
         config = CouncilConfig.defaults()
         assert config.tools["claude"].extra_args == []
         assert config.tools["codex"].extra_args == []
+
+
+class TestPartialToolConfig:
+    """Issue 1: partial tool configs must merge on top of per-tool defaults."""
+
+    def test_codex_partial_keeps_codex_command(self, tmp_path: Path):
+        """Codex with only extra_args should still have command=['codex']."""
+        yaml_content = (
+            "tools:\n"
+            "  codex:\n"
+            "    extra_args: ['--foo']\n"
+        )
+        cfg_file = tmp_path / ".council.yml"
+        cfg_file.write_text(yaml_content, encoding="utf-8")
+        config = load_config(cli_path=cfg_file)
+        assert config.tools["codex"].command == ["codex"]
+        assert config.tools["codex"].extra_args == ["--foo"]
+
+    def test_claude_partial_keeps_claude_command(self, tmp_path: Path):
+        """Claude with only extra_args should still have command=['claude']."""
+        yaml_content = (
+            "tools:\n"
+            "  claude:\n"
+            "    extra_args: ['-p']\n"
+        )
+        cfg_file = tmp_path / ".council.yml"
+        cfg_file.write_text(yaml_content, encoding="utf-8")
+        config = load_config(cli_path=cfg_file)
+        assert config.tools["claude"].command == ["claude"]
+        assert config.tools["claude"].extra_args == ["-p"]
+
+    def test_partial_config_preserves_default_description(self, tmp_path: Path):
+        """Partial override should keep the default description."""
+        yaml_content = (
+            "tools:\n"
+            "  codex:\n"
+            "    extra_args: ['--bar']\n"
+        )
+        cfg_file = tmp_path / ".council.yml"
+        cfg_file.write_text(yaml_content, encoding="utf-8")
+        config = load_config(cli_path=cfg_file)
+        assert config.tools["codex"].description == "Codex CLI"
+
+    def test_explicit_command_override_respected(self, tmp_path: Path):
+        """If user explicitly sets command, it should win over defaults."""
+        yaml_content = (
+            "tools:\n"
+            "  codex:\n"
+            "    command: ['my-codex-wrapper']\n"
+        )
+        cfg_file = tmp_path / ".council.yml"
+        cfg_file.write_text(yaml_content, encoding="utf-8")
+        config = load_config(cli_path=cfg_file)
+        assert config.tools["codex"].command == ["my-codex-wrapper"]
+
+    def test_unknown_tool_uses_toolconfig_defaults(self, tmp_path: Path):
+        """Unknown tools (not claude/codex) use ToolConfig defaults."""
+        yaml_content = (
+            "tools:\n"
+            "  custom_tool:\n"
+            "    extra_args: ['--custom']\n"
+        )
+        cfg_file = tmp_path / ".council.yml"
+        cfg_file.write_text(yaml_content, encoding="utf-8")
+        config = load_config(cli_path=cfg_file)
+        # Unknown tool falls back to ToolConfig defaults (command=["claude"]).
+        assert config.tools["custom_tool"].command == ["claude"]
+        assert config.tools["custom_tool"].extra_args == ["--custom"]

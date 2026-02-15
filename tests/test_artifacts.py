@@ -188,10 +188,10 @@ class TestCommandRedaction:
 
     def test_short_flag_with_secret(self):
         cmd = ["tool", "-k", "secret-key-value"]
-        # -k doesn't contain KEY/TOKEN/etc, so it should NOT be redacted.
+        # -k is in the sensitive short-flag allowlist, so it SHOULD be redacted.
         result = _redact_command(cmd)
         assert result[1] == "-k"
-        assert result[2] == "secret-key-value"
+        assert result[2] == "***REDACTED***"
 
     def test_credential_flag(self):
         cmd = ["tool", "--credential", "cred-val"]
@@ -208,3 +208,60 @@ class TestCommandRedaction:
         cmd = ["tool", "--secret-key=abc123"]
         result = _redact_command(cmd)
         assert result[1] == "--secret-key=***REDACTED***"
+
+    def test_short_flag_t_redacted(self):
+        """Short flag -t (token) should be redacted via allowlist."""
+        cmd = ["tool", "-t", "my-token"]
+        result = _redact_command(cmd)
+        assert result[1] == "-t"
+        assert result[2] == "***REDACTED***"
+
+
+class TestManifestToolConfigRedaction:
+    """Issue 5: manifest tool config fields must be redacted."""
+
+    def test_extra_args_secret_redacted_in_manifest(self, basic_opts: RunOptions):
+        """extra_args containing --api-key=sk-... must be redacted in manifest."""
+        from council.config import CouncilConfig, ToolConfig
+        from council.types import InputMode
+
+        config = CouncilConfig(tools={
+            "claude": ToolConfig(
+                command=["claude"],
+                extra_args=["--api-key=sk-live-secret123", "--verbose"],
+            ),
+        })
+        run_dir = create_run_dir(basic_opts)
+        ctx = GatheredContext(text="ctx", sources=[], total_size=3)
+        start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2025, 1, 1, 12, 1, 0, tzinfo=timezone.utc)
+        write_manifest(run_dir, basic_opts, config, ctx, [], start, end)
+
+        data = json.loads((run_dir / "manifest.json").read_text())
+        tool_cfg = data["tools"]["claude"]
+        # The secret value must be redacted.
+        assert "sk-live-secret123" not in json.dumps(tool_cfg)
+        assert "***REDACTED***" in json.dumps(tool_cfg)
+        # --verbose should be preserved.
+        assert "--verbose" in tool_cfg["extra_args"]
+
+    def test_command_secret_redacted_in_manifest(self, basic_opts: RunOptions):
+        """Secrets in command list must also be redacted."""
+        from council.config import CouncilConfig, ToolConfig
+
+        config = CouncilConfig(tools={
+            "codex": ToolConfig(
+                command=["codex", "--token=abc123"],
+                extra_args=[],
+            ),
+        })
+        run_dir = create_run_dir(basic_opts)
+        ctx = GatheredContext(text="ctx", sources=[], total_size=3)
+        start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2025, 1, 1, 12, 1, 0, tzinfo=timezone.utc)
+        write_manifest(run_dir, basic_opts, config, ctx, [], start, end)
+
+        data = json.loads((run_dir / "manifest.json").read_text())
+        tool_cfg = data["tools"]["codex"]
+        assert "abc123" not in json.dumps(tool_cfg)
+        assert tool_cfg["command"][1] == "--token=***REDACTED***"
