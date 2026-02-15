@@ -9,15 +9,33 @@ from typing import Annotated, Optional
 
 import typer
 
+from council import __version__
 from council.config import CouncilConfig, find_repo_root, load_config
 from council.pipeline import run_pipeline
 from council.types import ContextMode, DiffScope, Mode, RunOptions
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"council {__version__}")
+        raise typer.Exit()
+
 
 app = typer.Typer(
     name="council",
     help="Multi-LLM council: ping-pong workflow between Claude Code CLI and Codex CLI.",
     no_args_is_help=True,
 )
+
+
+@app.callback()
+def main(
+    version: Annotated[
+        Optional[bool],
+        typer.Option("--version", help="Show version and exit", callback=_version_callback, is_eager=True),
+    ] = None,
+) -> None:
+    """Multi-LLM council: ping-pong workflow."""
 
 
 def _common_options(

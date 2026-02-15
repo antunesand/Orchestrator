@@ -1,4 +1,4 @@
-"""Tests for run directory structure and manifest fields."""
+"""Tests for run directory structure, manifest fields, and command redaction."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from council.artifacts import create_run_dir, save_final, save_round0, save_task, write_manifest
+from council.artifacts import _redact_command, create_run_dir, save_final, save_round0, save_task, write_manifest
 from council.config import CouncilConfig
 from council.types import (
     ContextSource,
@@ -31,11 +31,18 @@ class TestRunDirectoryStructure:
     def test_dirname_contains_timestamp_and_slug(self, basic_opts: RunOptions):
         run_dir = create_run_dir(basic_opts)
         name = run_dir.name
-        # Should contain date pattern.
         assert "-" in name
         assert "_" in name
-        # Should contain slug from task.
         assert "fix" in name.lower() or "broken" in name.lower() or "auth" in name.lower()
+
+    # --- Issue 4: run dir uniqueness ---
+    def test_consecutive_dirs_are_unique(self, basic_opts: RunOptions):
+        """Two consecutive create_run_dir calls produce different directories."""
+        dir1 = create_run_dir(basic_opts)
+        dir2 = create_run_dir(basic_opts)
+        assert dir1 != dir2
+        assert dir1.exists()
+        assert dir2.exists()
 
 
 class TestSaveTask:
@@ -108,7 +115,7 @@ class TestManifest:
             results={
                 "claude": ToolResult(
                     tool_name="claude",
-                    command=["claude", "-p"],
+                    command=["claude"],
                     exit_code=0,
                     stdout="out",
                     stderr="",
@@ -146,3 +153,58 @@ class TestManifest:
         redacted = redact_env(env)
         assert redacted["OPENAI_API_KEY"] == "***REDACTED***"
         assert redacted["HOME"] == "/home/user"
+
+
+# --- Issue 3: command redaction ---
+class TestCommandRedaction:
+    def test_flag_equals_value(self):
+        """--api-key=sk-secret should redact the value."""
+        cmd = ["tool", "--api-key=sk-secret123", "--verbose"]
+        result = _redact_command(cmd)
+        assert result[0] == "tool"
+        assert result[1] == "--api-key=***REDACTED***"
+        assert result[2] == "--verbose"
+
+    def test_flag_separate_value(self):
+        """--api-key sk-secret as two args: flag preserved, value redacted."""
+        cmd = ["tool", "--api-key", "sk-secret123", "--output", "file.txt"]
+        result = _redact_command(cmd)
+        assert result[0] == "tool"
+        assert result[1] == "--api-key"
+        assert result[2] == "***REDACTED***"
+        assert result[3] == "--output"
+        assert result[4] == "file.txt"
+
+    def test_token_flag(self):
+        cmd = ["tool", "--token", "my-token-value"]
+        result = _redact_command(cmd)
+        assert result[1] == "--token"
+        assert result[2] == "***REDACTED***"
+
+    def test_password_equals(self):
+        cmd = ["tool", "--password=hunter2"]
+        result = _redact_command(cmd)
+        assert result[1] == "--password=***REDACTED***"
+
+    def test_short_flag_with_secret(self):
+        cmd = ["tool", "-k", "secret-key-value"]
+        # -k doesn't contain KEY/TOKEN/etc, so it should NOT be redacted.
+        result = _redact_command(cmd)
+        assert result[1] == "-k"
+        assert result[2] == "secret-key-value"
+
+    def test_credential_flag(self):
+        cmd = ["tool", "--credential", "cred-val"]
+        result = _redact_command(cmd)
+        assert result[1] == "--credential"
+        assert result[2] == "***REDACTED***"
+
+    def test_no_sensitive_flags(self):
+        cmd = ["claude", "-p", "--no-color"]
+        result = _redact_command(cmd)
+        assert result == cmd
+
+    def test_secret_env_in_flag(self):
+        cmd = ["tool", "--secret-key=abc123"]
+        result = _redact_command(cmd)
+        assert result[1] == "--secret-key=***REDACTED***"

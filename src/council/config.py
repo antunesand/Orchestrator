@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import os
+import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from council.types import InputMode
 
@@ -30,14 +30,18 @@ class CouncilConfig(BaseModel):
 
     @classmethod
     def defaults(cls) -> CouncilConfig:
-        """Return a config with sensible defaults for claude and codex."""
+        """Return a config with sensible defaults for claude and codex.
+
+        No extra args by default — users should configure tool-specific
+        flags (e.g. ``-p`` for Claude Code) in ``.council.yml``.
+        """
         return cls(
             tools={
                 "claude": ToolConfig(
                     description="Claude Code CLI",
                     command=["claude"],
                     input_mode=InputMode.STDIN,
-                    extra_args=["-p"],
+                    extra_args=[],
                 ),
                 "codex": ToolConfig(
                     description="Codex CLI",
@@ -66,9 +70,27 @@ def redact_env(env: dict[str, str]) -> dict[str, str]:
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
-    """Load and return parsed YAML from a file."""
-    with open(path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+    """Load and return parsed YAML from a file.
+
+    Returns an empty dict on parse errors (with a warning to stderr).
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError as exc:
+        print(
+            f"Warning: failed to parse config '{path}': {exc}\n"
+            f"  Falling back to default configuration.",
+            file=sys.stderr,
+        )
+        return {}
+    except OSError as exc:
+        print(
+            f"Warning: could not read config '{path}': {exc}\n"
+            f"  Falling back to default configuration.",
+            file=sys.stderr,
+        )
+        return {}
     return data if isinstance(data, dict) else {}
 
 
@@ -81,8 +103,9 @@ def load_config(
     Search order:
     1. Explicit CLI flag path
     2. Repo root .council.yml
-    3. Home directory ~/.council.yml
-    4. Built-in defaults
+    3. Repo root council.yml
+    4. Home directory ~/.council.yml
+    5. Built-in defaults
     """
     candidates: list[Path] = []
 
@@ -115,7 +138,14 @@ def _parse_config(raw: dict[str, Any]) -> CouncilConfig:
     tools: dict[str, ToolConfig] = {}
     for name, tool_data in tools_raw.items():
         if isinstance(tool_data, dict):
-            tools[name] = ToolConfig(**tool_data)
+            try:
+                tools[name] = ToolConfig(**tool_data)
+            except (ValidationError, TypeError) as exc:
+                print(
+                    f"Warning: invalid config for tool '{name}': {exc}\n"
+                    f"  Using defaults for this tool.",
+                    file=sys.stderr,
+                )
 
     # Merge: keep defaults for tools not specified in config.
     for name, default_tool in defaults.tools.items():

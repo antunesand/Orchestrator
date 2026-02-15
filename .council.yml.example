@@ -9,7 +9,7 @@ tools:
     command: ["claude"]
     input_mode: "stdin"          # stdin | file
     prompt_file_arg: null        # if input_mode=file, e.g. "--prompt-file"
-    extra_args: ["-p"]           # extra args appended to command
+    extra_args: ["-p"]           # recommended for Claude Code CLI (pipe mode)
     env: {}                      # additional env vars
 
   codex:
