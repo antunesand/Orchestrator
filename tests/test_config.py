@@ -58,10 +58,14 @@ class TestLoadConfigFallback:
 
 
 class TestDefaults:
-    def test_defaults_claude_uses_print_mode(self):
-        """Defaults should include -p for Claude (headless print mode)."""
+    def test_defaults_claude_uses_print_mode_with_query(self):
+        """Defaults should include -p and a query argument for Claude."""
         config = CouncilConfig.defaults()
-        assert config.tools["claude"].extra_args == ["-p"]
+        args = config.tools["claude"].extra_args
+        assert args[0] == "-p"
+        # The query argument must follow -p (official CLI pattern).
+        assert len(args) == 2
+        assert "piped input" in args[1].lower()
         assert config.tools["claude"].command == ["claude"]
 
     def test_defaults_codex_uses_exec_mode(self):

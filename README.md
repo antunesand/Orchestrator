@@ -136,7 +136,11 @@ tools:
     command: ["claude"]
     input_mode: "stdin"
     extra_args:
-      - "-p"                     # print mode: non-interactive, reads prompt from stdin
+      - "-p"                     # print mode: non-interactive
+      # Query argument required by `claude -p "query"`.
+      # Council pipes the full prompt via stdin; this constant satisfies
+      # the positional arg so the CLI accepts piped input.
+      - "Use the piped input as the full task instructions. Produce the best possible answer."
     env: {}                      # do NOT put API keys here
 
   codex:
@@ -155,7 +159,7 @@ tools:
 
 #### Why these flags?
 
-- **Claude `-p`** (print mode): Runs non-interactively, reads prompt from stdin, prints response to stdout. This is the official headless mode for Claude Code CLI.
+- **Claude `-p "query"`** (print mode): Runs non-interactively, prints response to stdout. Council pipes the full prompt via stdin and passes a short print-mode query argument. The official CLI pattern is `claude -p "query"`, where piped stdin is processed as additional context.
 - **Codex `exec`**: The automation-friendly subcommand (vs the interactive default). Use `codex exec` for scripted/CI-style runs.
 - **Codex `--ask-for-approval never`**: Prevents Codex from pausing to ask for user confirmation mid-run, which would hang the pipeline.
 - **Codex `--sandbox read-only`**: Safer default — Codex can read your repo but won't write files or run commands.
@@ -178,7 +182,7 @@ If your `claude` binary is at a custom path:
 tools:
   claude:
     command: ["/usr/local/bin/claude"]
-    extra_args: ["-p", "--no-color"]
+    extra_args: ["-p", "Use the piped input as the full task instructions. Produce the best possible answer.", "--no-color"]
 ```
 
 If your tool requires file-based input:

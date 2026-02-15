@@ -15,7 +15,11 @@ tools:
     input_mode: "stdin"          # stdin | file
     prompt_file_arg: null        # only needed if input_mode=file
     extra_args:
-      - "-p"                     # print mode: non-interactive, reads prompt from stdin
+      - "-p"                     # print mode: non-interactive
+      # The query argument is required by `claude -p "query"`.
+      # Council pipes the full prompt via stdin; this short constant
+      # satisfies the positional arg so the CLI accepts piped input.
+      - "Use the piped input as the full task instructions. Produce the best possible answer."
     env: {}                      # do NOT put API keys here
 
   codex:

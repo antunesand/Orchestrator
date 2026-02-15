@@ -33,7 +33,9 @@ class CouncilConfig(BaseModel):
         """Return a config with sensible defaults for claude and codex.
 
         Uses the recommended automation-friendly invocations:
-        - Claude Code: ``claude -p`` (headless print mode, reads stdin)
+        - Claude Code: ``claude -p "query"`` (headless print mode).
+          The full prompt is piped via stdin; a short constant query
+          argument satisfies the required positional arg for ``-p``.
         - Codex: ``codex exec`` with ``--ask-for-approval never``,
           ``--sandbox read-only``, and ``-`` (read prompt from stdin)
         """
@@ -43,7 +45,11 @@ class CouncilConfig(BaseModel):
                     description="Claude Code CLI",
                     command=["claude"],
                     input_mode=InputMode.STDIN,
-                    extra_args=["-p"],
+                    extra_args=[
+                        "-p",
+                        "Use the piped input as the full task instructions."
+                        " Produce the best possible answer.",
+                    ],
                 ),
                 "codex": ToolConfig(
                     description="Codex CLI",
