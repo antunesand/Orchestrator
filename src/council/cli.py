@@ -12,6 +12,7 @@ from typing import Annotated
 import typer
 
 from council import __version__
+from council.artifacts import _redact_command
 from council.config import find_repo_root, load_config
 from council.pipeline import run_pipeline
 from council.types import ContextMode, DiffScope, Mode, RunOptions
@@ -304,31 +305,36 @@ def init(
 
 
 @app.command()
-def doctor() -> None:
+def doctor(
+    config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
+) -> None:
     """Check tool availability and configuration."""
     repo_root = find_repo_root()
-    cfg = load_config(repo_root=repo_root)
+    cfg = load_config(cli_path=config, repo_root=repo_root)
 
     typer.echo(f"council {__version__}\n")
 
     # Config source.
-    config_locations = []
-    if repo_root:
-        config_locations.extend([
-            repo_root / ".council.yml",
-            repo_root / "council.yml",
-        ])
-    config_locations.append(Path.home() / ".council.yml")
-
-    config_used = None
-    for loc in config_locations:
-        if loc.is_file():
-            config_used = loc
-            break
-    if config_used:
-        typer.echo(f"Config:     {config_used}")
+    if config and config.is_file():
+        typer.echo(f"Config:     {config}")
     else:
-        typer.echo("Config:     (built-in defaults)")
+        config_locations: list[Path] = []
+        if repo_root:
+            config_locations.extend([
+                repo_root / ".council.yml",
+                repo_root / "council.yml",
+            ])
+        config_locations.append(Path.home() / ".council.yml")
+
+        config_used = None
+        for loc in config_locations:
+            if loc.is_file():
+                config_used = loc
+                break
+        if config_used:
+            typer.echo(f"Config:     {config_used}")
+        else:
+            typer.echo("Config:     (built-in defaults)")
 
     # Repo root.
     if repo_root:
@@ -360,7 +366,7 @@ def doctor() -> None:
         typer.echo(f"  {name:12s} {' '.join(full_cmd):20s} {status}")
 
         if tcfg.extra_args:
-            typer.echo(f"{'':14s} extra_args: {tcfg.extra_args}")
+            typer.echo(f"{'':14s} extra_args: {_redact_command(tcfg.extra_args)}")
 
         # 3. If command has a subcommand (e.g. "codex exec"), validate it.
         if len(full_cmd) > 1:
