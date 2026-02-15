@@ -32,6 +32,8 @@ tools:
       - "never"                  # prevents interactive approval pauses
       - "--sandbox"
       - "read-only"              # safer default: no file writes by Codex
+      - "--color"
+      - "never"                  # --color never keeps run logs clean (no ANSI codes)
       # IMPORTANT: "-" MUST be last. It is the PROMPT placeholder telling
       # Codex to read the prompt from stdin.
       - "-"

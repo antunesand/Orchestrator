@@ -152,6 +152,8 @@ tools:
       - "never"                  # prevents interactive approval pauses
       - "--sandbox"
       - "read-only"              # safer default: no file writes by Codex
+      - "--color"
+      - "never"                  # keeps saved artifacts free of ANSI codes
       # IMPORTANT: "-" MUST be last. It tells Codex to read the prompt from stdin.
       - "-"
     env: {}
@@ -163,6 +165,7 @@ tools:
 - **Codex `exec`**: The automation-friendly subcommand (vs the interactive default). Use `codex exec` for scripted/CI-style runs.
 - **Codex `--ask-for-approval never`**: Prevents Codex from pausing to ask for user confirmation mid-run, which would hang the pipeline.
 - **Codex `--sandbox read-only`**: Safer default — Codex can read your repo but won't write files or run commands.
+- **Codex `--color never`**: Disables ANSI color escape codes in stdout, keeping saved run artifacts clean and readable.
 - **Codex `-` (last arg)**: This is the PROMPT positional argument. The literal `-` tells Codex to read the prompt from stdin. **It must be the last argument.**
 
 > **Note:** If your config file has a syntax error, council prints a warning and falls back to defaults.
@@ -193,7 +196,7 @@ tools:
     command: ["codex", "exec"]
     input_mode: "file"
     prompt_file_arg: "--input"
-    extra_args: ["--ask-for-approval", "never", "--sandbox", "read-only"]
+    extra_args: ["--ask-for-approval", "never", "--sandbox", "read-only", "--color", "never"]
 ```
 
 ## Run Artifacts

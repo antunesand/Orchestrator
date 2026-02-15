@@ -37,7 +37,8 @@ class CouncilConfig(BaseModel):
           The full prompt is piped via stdin; a short constant query
           argument satisfies the required positional arg for ``-p``.
         - Codex: ``codex exec`` with ``--ask-for-approval never``,
-          ``--sandbox read-only``, and ``-`` (read prompt from stdin)
+          ``--sandbox read-only``, ``--color never``, and ``-``
+          (read prompt from stdin)
         """
         return cls(
             tools={
@@ -58,6 +59,8 @@ class CouncilConfig(BaseModel):
                     extra_args=[
                         "--ask-for-approval", "never",
                         "--sandbox", "read-only",
+                        # Disable ANSI color codes so saved artifacts are clean.
+                        "--color", "never",
                         "-",
                     ],
                 ),

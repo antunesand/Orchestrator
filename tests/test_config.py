@@ -69,15 +69,19 @@ class TestDefaults:
         assert config.tools["claude"].command == ["claude"]
 
     def test_defaults_codex_uses_exec_mode(self):
-        """Defaults should use codex exec with safety flags and stdin placeholder."""
+        """Defaults should use codex exec with safety flags, --color never, and stdin placeholder."""
         config = CouncilConfig.defaults()
+        args = config.tools["codex"].extra_args
         assert config.tools["codex"].command == ["codex", "exec"]
-        assert "--ask-for-approval" in config.tools["codex"].extra_args
-        assert "never" in config.tools["codex"].extra_args
-        assert "--sandbox" in config.tools["codex"].extra_args
-        assert "read-only" in config.tools["codex"].extra_args
+        assert "--ask-for-approval" in args
+        assert "never" in args
+        assert "--sandbox" in args
+        assert "read-only" in args
+        # --color never keeps saved artifacts free of ANSI codes.
+        color_idx = args.index("--color")
+        assert args[color_idx + 1] == "never"
         # "-" must be last (stdin PROMPT placeholder).
-        assert config.tools["codex"].extra_args[-1] == "-"
+        assert args[-1] == "-"
 
 
 class TestPartialToolConfig:
