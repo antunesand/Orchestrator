@@ -63,6 +63,7 @@ def _common_options(
     verbose: bool = False,
     no_save: bool = False,
     redact_paths: bool = False,
+    smart_context: bool = False,
     config: Path | None = None,
 ) -> RunOptions:
     """Build RunOptions from CLI arguments."""
@@ -98,6 +99,7 @@ def _common_options(
         verbose=verbose,
         no_save=no_save,
         redact_paths=redact_paths,
+        smart_context=smart_context,
         config_path=config,
     )
 
@@ -142,6 +144,7 @@ def fix(
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
     no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
     redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
+    smart_context: Annotated[bool, typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs")] = True,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Fix a bug or error using the multi-LLM council."""
@@ -152,7 +155,7 @@ def fix(
         max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
         tools=tools, dry_run=dry_run, print_prompts=print_prompts,
         verbose=verbose, no_save=no_save, redact_paths=redact_paths,
-        config=config,
+        smart_context=smart_context, config=config,
     )
     _run(opts)
 
@@ -176,6 +179,7 @@ def feature(
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
     no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
     redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
+    smart_context: Annotated[bool, typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs")] = False,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Implement a new feature using the multi-LLM council."""
@@ -186,7 +190,7 @@ def feature(
         max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
         tools=tools, dry_run=dry_run, print_prompts=print_prompts,
         verbose=verbose, no_save=no_save, redact_paths=redact_paths,
-        config=config,
+        smart_context=smart_context, config=config,
     )
     _run(opts)
 
@@ -210,6 +214,7 @@ def review(
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
     no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
     redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
+    smart_context: Annotated[bool, typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs")] = False,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Review code changes using the multi-LLM council."""
@@ -220,7 +225,7 @@ def review(
         max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
         tools=tools, dry_run=dry_run, print_prompts=print_prompts,
         verbose=verbose, no_save=no_save, redact_paths=redact_paths,
-        config=config,
+        smart_context=smart_context, config=config,
     )
     _run(opts)
 

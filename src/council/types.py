@@ -114,4 +114,5 @@ class RunOptions:
     verbose: bool = False
     no_save: bool = False
     redact_paths: bool = False
+    smart_context: bool = False
     config_path: Path | None = None
