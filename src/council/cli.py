@@ -14,7 +14,7 @@ import typer
 from council import __version__
 from council.artifacts import _redact_command
 from council.config import find_repo_root, load_config
-from council.pipeline import run_pipeline
+from council.pipeline import resume_pipeline, run_pipeline
 from council.types import ContextMode, DiffScope, Mode, RunOptions
 
 # Path to the bundled example config.
@@ -210,6 +210,55 @@ def review(
         verbose=verbose, config=config,
     )
     _run(opts)
+
+
+@app.command()
+def resume(
+    run_dir: Annotated[Path, typer.Argument(help="Path to a previous run directory to resume")],
+    retry_failed: Annotated[bool, typer.Option("--retry-failed", help="Only re-run failed rounds, skip succeeded ones")] = False,
+    timeout_sec: Annotated[int, typer.Option("--timeout-sec", help="Timeout per tool call in seconds")] = 180,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
+) -> None:
+    """Resume an interrupted or failed council run.
+
+    Point this at a previous run directory (e.g. runs/2026-02-16_123456_…/)
+    to pick up where it left off. The original task and context are reloaded
+    from the saved artifacts.
+
+    Use --retry-failed to re-execute only the rounds that failed while
+    preserving the output of rounds that already succeeded.
+    """
+    run_path = Path(run_dir)
+    if not run_path.is_dir():
+        typer.echo(f"Error: run directory not found: {run_path}", err=True)
+        raise typer.Exit(1)
+
+    state_file = run_path / "state.json"
+    if not state_file.exists():
+        typer.echo(
+            f"Error: no state.json in {run_path}. "
+            "Only runs created with council >= 1.1 can be resumed.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    repo_root = find_repo_root()
+    cfg = load_config(cli_path=config, repo_root=repo_root)
+
+    try:
+        asyncio.run(
+            resume_pipeline(
+                run_dir=run_path,
+                config=cfg,
+                retry_failed=retry_failed,
+                timeout_sec=timeout_sec,
+                verbose=verbose,
+            )
+        )
+    except KeyboardInterrupt:
+        typer.echo("\nInterrupted.", err=True)
+        raise typer.Exit(130) from None
 
 
 def _ensure_gitignore_entries(directory: Path) -> list[str]:

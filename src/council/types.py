@@ -82,6 +82,16 @@ class GatheredContext:
     changed_files: list[str] = field(default_factory=list)
 
 
+class RoundStatus(str, enum.Enum):
+    """Status of a pipeline round in the checkpoint state."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    OK = "ok"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
 @dataclass
 class RunOptions:
     """All options for a single pipeline run."""
