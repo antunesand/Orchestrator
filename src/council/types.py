@@ -115,4 +115,7 @@ class RunOptions:
     no_save: bool = False
     redact_paths: bool = False
     smart_context: bool = False
+    structured_review: bool = False
+    claude_n: int = 1
+    codex_n: int = 1
     config_path: Path | None = None

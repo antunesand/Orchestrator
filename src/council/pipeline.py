@@ -24,6 +24,12 @@ from council.config import CouncilConfig, find_repo_root
 from council.context import gather_context
 from council.diff_extract import extract_and_save
 from council.prompts import round0_prompt, round1_prompt, round2_prompt, round3_prompt
+from council.review import (
+    ReviewResult,
+    format_review_summary,
+    parse_review,
+    save_review_checklist,
+)
 from council.runner import run_tool, run_tools_parallel
 from council.state import (
     ROUND_NAMES,
@@ -86,6 +92,44 @@ def _make_summary(final_output: str) -> str:
 def _tool_ok(result: ToolResult | None) -> bool:
     """Check if a tool result represents success."""
     return result is not None and result.exit_code == 0 and bool(result.stdout)
+
+
+def _pick_best_candidate(
+    candidates: list[tuple[str, str]],
+    verbose: bool = False,
+) -> tuple[str, str]:
+    """Pick the best candidate from multiple Round 0 outputs.
+
+    Heuristics (in order):
+    1. If any candidate includes a self-reported confidence score, pick highest.
+    2. Otherwise pick the longest output (more thorough analysis).
+
+    Returns ``(candidate_name, output_text)``.
+    """
+    if len(candidates) == 1:
+        return candidates[0]
+
+    # Try to extract confidence scores.
+    import re
+    _conf_re = re.compile(r"(?:confidence)\s*[:=]?\s*(\d{1,3})", re.IGNORECASE)
+    scored: list[tuple[str, str, int]] = []
+    for name, text in candidates:
+        m = _conf_re.search(text)
+        if m:
+            scored.append((name, text, int(m.group(1))))
+
+    if scored:
+        scored.sort(key=lambda x: x[2], reverse=True)
+        if verbose:
+            _print_verbose(
+                f"Candidate confidence scores: {', '.join(f'{n}={s}' for n, _, s in scored)}",
+                True,
+            )
+        return scored[0][0], scored[0][1]
+
+    # Fallback: pick longest output.
+    candidates.sort(key=lambda x: len(x[1]), reverse=True)
+    return candidates[0]
 
 
 def _round_tool_statuses(results: dict[str, ToolResult]) -> dict[str, str]:
@@ -344,12 +388,21 @@ async def _run_rounds(
             return round_name in retry_failed
         return True
 
+    # Multi-candidate counts.
+    claude_n = max(1, opts.claude_n)
+    codex_n = max(1, opts.codex_n)
+    multi_candidate = claude_n > 1 or codex_n > 1
+
     # ---- Round 0: Parallel generation ----
     r0_prompts: dict[str, str] = {}
     if has_claude:
         r0_prompts["claude"] = round0_prompt(opts.mode, opts.task, ctx.text)
+        for i in range(1, claude_n):
+            r0_prompts[f"claude_{i+1}"] = round0_prompt(opts.mode, opts.task, ctx.text)
     if has_codex:
         r0_prompts["codex"] = round0_prompt(opts.mode, opts.task, ctx.text)
+        for i in range(1, codex_n):
+            r0_prompts[f"codex_{i+1}"] = round0_prompt(opts.mode, opts.task, ctx.text)
 
     if opts.print_prompts:
         for name, prompt in r0_prompts.items():
@@ -362,14 +415,25 @@ async def _run_rounds(
         return None
 
     if _should_run("0_generate"):
-        _print_progress("Round 0: Generating responses in parallel...")
+        if multi_candidate:
+            _print_progress(f"Round 0: Generating responses in parallel (claude x{claude_n}, codex x{codex_n})...")
+        else:
+            _print_progress("Round 0: Generating responses in parallel...")
         for name in r0_prompts:
-            _print_verbose(f"Calling {name}: {' '.join(config.tools[name].command)}", verbose)
+            base_name = name.split("_")[0]
+            if base_name in config.tools:
+                _print_verbose(f"Calling {name}: {' '.join(config.tools[base_name].command)}", verbose)
 
         if not no_save:
             update_round(run_dir, state, "0_generate", RoundStatus.RUNNING)
 
-        r0_configs = {n: config.tools[n] for n in r0_prompts if n in config.tools}
+        # Build configs: candidates reuse the base tool config.
+        r0_configs = {}
+        for n in r0_prompts:
+            base = n.split("_")[0] if "_" in n and n.split("_")[-1].isdigit() else n
+            if base in config.tools:
+                r0_configs[n] = config.tools[base]
+
         r0_results = await run_tools_parallel(
             r0_configs, r0_prompts, timeout_sec=opts.timeout_sec, cwd=repo_root
         )
@@ -383,11 +447,32 @@ async def _run_rounds(
             _print_progress(f"  {name}: {_tool_status_str(result)} ({result.duration_sec:.1f}s)")
             _print_verbose(f"stdout: {len(result.stdout)} bytes, stderr: {len(result.stderr)} bytes", verbose)
 
-        # Determine status.
-        claude_r0 = r0_results.get("claude")
-        codex_r0 = r0_results.get("codex")
-        claude_r0_out = claude_r0.stdout if _tool_ok(claude_r0) else ""
-        codex_r0_out = codex_r0.stdout if _tool_ok(codex_r0) else ""
+        # Collect successful outputs grouped by tool family.
+        claude_candidates: list[tuple[str, str]] = []
+        codex_candidates: list[tuple[str, str]] = []
+        for name, result in r0_results.items():
+            if not _tool_ok(result):
+                continue
+            base = name.split("_")[0] if "_" in name and name.split("_")[-1].isdigit() else name
+            if base == "claude":
+                claude_candidates.append((name, result.stdout))
+            elif base == "codex":
+                codex_candidates.append((name, result.stdout))
+
+        # Pick best candidate per family.
+        if claude_candidates:
+            best_claude_name, claude_r0_out = _pick_best_candidate(claude_candidates, verbose)
+            if multi_candidate and len(claude_candidates) > 1:
+                _print_progress(f"  Best claude candidate: {best_claude_name}")
+        else:
+            claude_r0_out = ""
+
+        if codex_candidates:
+            best_codex_name, codex_r0_out = _pick_best_candidate(codex_candidates, verbose)
+            if multi_candidate and len(codex_candidates) > 1:
+                _print_progress(f"  Best codex candidate: {best_codex_name}")
+        else:
+            codex_r0_out = ""
 
         if not claude_r0_out and not codex_r0_out:
             _print_progress("[bold red]ERROR:[/bold red] Both tools failed in Round 0. Cannot continue.")
@@ -450,10 +535,13 @@ async def _run_rounds(
         claude_improved = _load_round_output(run_dir, "1_claude_improve", "claude") or claude_r0_out
 
     # ---- Round 2: Codex critiques ----
+    structured = opts.structured_review
+    review_result: ReviewResult | None = None
+
     if has_codex and codex_available and "codex" in config.tools:
         if _should_run("2_codex_critique"):
             _print_progress("Round 2: Codex critiquing improved solution...")
-            r2_prompt = round2_prompt(opts.mode, opts.task, ctx.text, claude_improved)
+            r2_prompt = round2_prompt(opts.mode, opts.task, ctx.text, claude_improved, structured=structured)
             _print_verbose(f"Prompt size: {len(r2_prompt) / 1024:.1f} KB", verbose)
 
             if opts.print_prompts:
@@ -476,6 +564,24 @@ async def _run_rounds(
                 codex_critique = r2_result.stdout
                 if not no_save:
                     update_round(run_dir, state, "2_codex_critique", RoundStatus.OK, {"codex": "ok"})
+
+                # Parse structured review.
+                if structured:
+                    review_result = parse_review(codex_critique)
+                    _print_progress(f"  Review: {format_review_summary(review_result).splitlines()[0]}")
+                    if not no_save:
+                        save_review_checklist(review_result, run_dir / "final" / "review_checklist.md")
+                        import json as _json
+                        (run_dir / "final" / "review.json").write_text(
+                            _json.dumps(review_result.to_dict(), indent=2), encoding="utf-8",
+                        )
+
+                    # Early stop: if high confidence and no must-fix, skip R3.
+                    if review_result.high_confidence:
+                        _print_progress("  High confidence with no must-fix issues — skipping Round 3.")
+                        if not no_save:
+                            update_round(run_dir, state, "3_claude_finalize", RoundStatus.SKIPPED)
+                        return claude_improved
             else:
                 codex_critique = "(Codex critique unavailable.)"
                 if not no_save:
