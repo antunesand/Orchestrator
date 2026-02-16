@@ -11,7 +11,6 @@ from rich.console import Console
 from council.artifacts import (
     cleanup_intermediates,
     create_run_dir,
-    redact_abs_paths,
     save_context,
     save_final,
     save_round,
@@ -20,6 +19,7 @@ from council.artifacts import (
     write_manifest,
     write_minimal_manifest,
 )
+from council.compat import redact_abs_paths
 from council.config import CouncilConfig, find_repo_root
 from council.context import gather_context
 from council.diff_extract import extract_and_save

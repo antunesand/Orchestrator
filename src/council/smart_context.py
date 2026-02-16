@@ -11,6 +11,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from council.compat import normalize_path_str
+
 
 @dataclass(frozen=True)
 class FileRef:
@@ -96,7 +98,7 @@ def extract_file_refs(text: str) -> list[FileRef]:
 
     for pattern, has_col in _PATTERNS:
         for m in pattern.finditer(text):
-            path = m.group(1)
+            path = normalize_path_str(m.group(1))
             line_str = m.group(2) if m.lastindex and m.lastindex >= 2 else None
             line = int(line_str) if line_str else None
             col = None

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import fnmatch
-import glob as globmod
 import platform
 import subprocess
 import sys
 from pathlib import Path
 
+from council.compat import as_posix, normalize_glob, normalize_path_str
 from council.smart_context import FileRef, extract_file_refs, extract_scope, resolve_ref
 from council.types import ContextMode, ContextSource, DiffScope, GatheredContext, RunOptions
 
@@ -61,7 +61,7 @@ def _matches_exclude(name: str) -> bool:
     each component of the path against all exclude patterns.
     """
     # Normalise separators so Windows paths work too.
-    normalised = name.replace("\\", "/")
+    normalised = normalize_path_str(name)
     parts = normalised.split("/")
 
     for part in parts:
@@ -248,7 +248,7 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
 
     # --- Glob includes ---
     for pattern in opts.include_globs:
-        matched = sorted(globmod.glob(pattern, recursive=True))
+        matched = normalize_glob(pattern, recursive=True)
         for m in matched:
             _include_file(Path(m), opts, sections, sources, priority=30, explicit=False)
 
@@ -286,7 +286,7 @@ def _include_file(
     if not path.is_file():
         return
 
-    name = str(path)
+    name = as_posix(path)
 
     # Exclude check.
     if _matches_exclude(name) or _matches_exclude(path.name):
@@ -357,7 +357,7 @@ def _include_from_task_refs(
         if resolved is None:
             continue
 
-        name = str(resolved)
+        name = as_posix(resolved)
         if name in already_included:
             continue
         already_included.add(name)

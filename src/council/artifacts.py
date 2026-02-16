@@ -9,38 +9,10 @@ import shutil
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from posixpath import basename as posix_basename
 
+from council.compat import redact_abs_paths  # cross-platform path redaction
 from council.config import CouncilConfig, redact_env
 from council.types import ContextSource, GatheredContext, RoundResult, RunOptions, ToolResult
-
-
-# ---------------------------------------------------------------------------
-# Absolute-path redaction
-# ---------------------------------------------------------------------------
-
-# Matches absolute Unix paths rooted at common directories, capturing as much
-# of the path as looks reasonable (stops at whitespace or shell/quote chars).
-_ABS_PATH_RE = re.compile(
-    r"(?<![:\w/])"  # negative look-behind: don't match inside URLs or longer paths
-    r"(/(?:home|Users|root|var|tmp|opt|usr|etc|private|mnt|media|srv|data|app|workspace)"
-    r"(?:/[^\s:,;'\"\\)\]}>]+)+)"
-)
-
-
-def redact_abs_paths(text: str) -> str:
-    """Replace absolute filesystem paths with ``<REDACTED>/basename``.
-
-    Only paths rooted at common system directories are matched, so relative
-    paths like ``src/foo.py`` are left untouched.
-    """
-    def _replace(m: re.Match[str]) -> str:
-        full_path = m.group(1)
-        # Use the last path component (basename).
-        base = posix_basename(full_path.rstrip("/"))
-        return f"<REDACTED>/{base}" if base else "<REDACTED>"
-
-    return _ABS_PATH_RE.sub(_replace, text)
 
 
 def _make_slug(task: str) -> str:
