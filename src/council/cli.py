@@ -12,9 +12,18 @@ from typing import Annotated
 import typer
 
 from council import __version__
+from council.apply import (
+    apply_patch,
+    check_patch,
+    create_branch,
+    load_patch,
+    post_apply_diff,
+    show_diff_preview,
+    working_tree_clean,
+)
 from council.artifacts import _redact_command
 from council.config import find_repo_root, load_config
-from council.pipeline import run_pipeline
+from council.pipeline import resume_pipeline, run_pipeline
 from council.types import ContextMode, DiffScope, Mode, RunOptions
 
 # Path to the bundled example config.
@@ -61,6 +70,12 @@ def _common_options(
     dry_run: bool = False,
     print_prompts: bool = False,
     verbose: bool = False,
+    no_save: bool = False,
+    redact_paths: bool = False,
+    smart_context: bool = False,
+    structured_review: bool = False,
+    claude_n: int = 1,
+    codex_n: int = 1,
     config: Path | None = None,
 ) -> RunOptions:
     """Build RunOptions from CLI arguments."""
@@ -94,6 +109,12 @@ def _common_options(
         dry_run=dry_run,
         print_prompts=print_prompts,
         verbose=verbose,
+        no_save=no_save,
+        redact_paths=redact_paths,
+        smart_context=smart_context,
+        structured_review=structured_review,
+        claude_n=claude_n,
+        codex_n=codex_n,
         config_path=config,
     )
 
@@ -136,6 +157,12 @@ def fix(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
+    redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
+    smart_context: Annotated[bool, typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs")] = True,
+    structured_review: Annotated[bool, typer.Option("--structured-review/--no-structured-review", help="Request JSON-structured critique output")] = False,
+    claude_n: Annotated[int, typer.Option("--claude-n", help="Number of Claude candidates to generate in Round 0", min=1, max=5)] = 1,
+    codex_n: Annotated[int, typer.Option("--codex-n", help="Number of Codex candidates to generate in Round 0", min=1, max=5)] = 1,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Fix a bug or error using the multi-LLM council."""
@@ -145,7 +172,9 @@ def fix(
         include_from_diff=include_from_diff, max_context_kb=max_context_kb,
         max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
         tools=tools, dry_run=dry_run, print_prompts=print_prompts,
-        verbose=verbose, config=config,
+        verbose=verbose, no_save=no_save, redact_paths=redact_paths,
+        smart_context=smart_context, structured_review=structured_review,
+        claude_n=claude_n, codex_n=codex_n, config=config,
     )
     _run(opts)
 
@@ -167,6 +196,12 @@ def feature(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
+    redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
+    smart_context: Annotated[bool, typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs")] = False,
+    structured_review: Annotated[bool, typer.Option("--structured-review/--no-structured-review", help="Request JSON-structured critique output")] = False,
+    claude_n: Annotated[int, typer.Option("--claude-n", help="Number of Claude candidates to generate in Round 0", min=1, max=5)] = 1,
+    codex_n: Annotated[int, typer.Option("--codex-n", help="Number of Codex candidates to generate in Round 0", min=1, max=5)] = 1,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Implement a new feature using the multi-LLM council."""
@@ -176,7 +211,9 @@ def feature(
         include_from_diff=include_from_diff, max_context_kb=max_context_kb,
         max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
         tools=tools, dry_run=dry_run, print_prompts=print_prompts,
-        verbose=verbose, config=config,
+        verbose=verbose, no_save=no_save, redact_paths=redact_paths,
+        smart_context=smart_context, structured_review=structured_review,
+        claude_n=claude_n, codex_n=codex_n, config=config,
     )
     _run(opts)
 
@@ -198,6 +235,12 @@ def review(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
+    redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
+    smart_context: Annotated[bool, typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs")] = False,
+    structured_review: Annotated[bool, typer.Option("--structured-review/--no-structured-review", help="Request JSON-structured critique output")] = True,
+    claude_n: Annotated[int, typer.Option("--claude-n", help="Number of Claude candidates to generate in Round 0", min=1, max=5)] = 1,
+    codex_n: Annotated[int, typer.Option("--codex-n", help="Number of Codex candidates to generate in Round 0", min=1, max=5)] = 1,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Review code changes using the multi-LLM council."""
@@ -207,9 +250,162 @@ def review(
         include_from_diff=include_from_diff, max_context_kb=max_context_kb,
         max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
         tools=tools, dry_run=dry_run, print_prompts=print_prompts,
-        verbose=verbose, config=config,
+        verbose=verbose, no_save=no_save, redact_paths=redact_paths,
+        smart_context=smart_context, structured_review=structured_review,
+        claude_n=claude_n, codex_n=codex_n, config=config,
     )
     _run(opts)
+
+
+@app.command()
+def resume(
+    run_dir: Annotated[Path, typer.Argument(help="Path to a previous run directory to resume")],
+    retry_failed: Annotated[bool, typer.Option("--retry-failed", help="Only re-run failed rounds, skip succeeded ones")] = False,
+    timeout_sec: Annotated[int, typer.Option("--timeout-sec", help="Timeout per tool call in seconds")] = 180,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
+) -> None:
+    """Resume an interrupted or failed council run.
+
+    Point this at a previous run directory (e.g. runs/2026-02-16_123456_…/)
+    to pick up where it left off. The original task and context are reloaded
+    from the saved artifacts.
+
+    Use --retry-failed to re-execute only the rounds that failed while
+    preserving the output of rounds that already succeeded.
+    """
+    run_path = Path(run_dir)
+    if not run_path.is_dir():
+        typer.echo(f"Error: run directory not found: {run_path}", err=True)
+        raise typer.Exit(1)
+
+    state_file = run_path / "state.json"
+    if not state_file.exists():
+        typer.echo(
+            f"Error: no state.json in {run_path}. "
+            "Only runs created with council >= 1.1 can be resumed.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    repo_root = find_repo_root()
+    cfg = load_config(cli_path=config, repo_root=repo_root)
+
+    try:
+        asyncio.run(
+            resume_pipeline(
+                run_dir=run_path,
+                config=cfg,
+                retry_failed=retry_failed,
+                timeout_sec=timeout_sec,
+                verbose=verbose,
+            )
+        )
+    except KeyboardInterrupt:
+        typer.echo("\nInterrupted.", err=True)
+        raise typer.Exit(130) from None
+
+
+@app.command(name="apply")
+def apply_cmd(
+    run_dir: Annotated[Path, typer.Argument(help="Path to a council run directory containing final.patch")],
+    apply_to: Annotated[str | None, typer.Option("--apply-to", help="Create a new branch, apply the patch there (no commit)")] = None,
+    check: Annotated[bool, typer.Option("--check", help="Dry-run: verify the patch applies cleanly without modifying files")] = False,
+    diff: Annotated[bool, typer.Option("--diff", help="Show a syntax-highlighted preview of the patch before applying")] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
+) -> None:
+    """Apply a patch from a previous council run to the current repository.
+
+    By default this is interactive: it shows the patch, asks for
+    confirmation, then applies.  Use --yes to skip the prompt.
+
+    Use --apply-to <branch> to create a new branch first, apply the
+    patch there, and leave it uncommitted for review.
+
+    Use --check to verify the patch applies without modifying any files.
+    """
+    run_path = Path(run_dir)
+    if not run_path.is_dir():
+        typer.echo(f"Error: run directory not found: {run_path}", err=True)
+        raise typer.Exit(1)
+
+    # Load the patch.
+    patch = load_patch(run_path)
+    if patch is None:
+        typer.echo(
+            f"Error: no final.patch found in {run_path / 'final'}.\n"
+            "The council run may not have produced a diff.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    # Determine repo root.
+    repo_root = find_repo_root()
+    if repo_root is None:
+        typer.echo("Error: not inside a git repository.", err=True)
+        raise typer.Exit(1)
+
+    # Show diff preview if requested, or always in interactive mode.
+    if diff or (not yes and not check):
+        typer.echo("")
+        show_diff_preview(patch)
+        typer.echo("")
+
+    # Dry-run check.
+    if check:
+        ok, detail = check_patch(patch, repo_root)
+        if ok:
+            typer.echo(f"Patch check: OK — {detail}")
+        else:
+            typer.echo(f"Patch check: FAILED\n{detail}", err=True)
+            raise typer.Exit(1)
+        return
+
+    # Verify the patch can be applied before prompting.
+    ok, detail = check_patch(patch, repo_root)
+    if not ok:
+        typer.echo(f"Patch cannot be applied cleanly:\n{detail}", err=True)
+        typer.echo("\nThe working tree may have diverged from the state when the council run was created.", err=True)
+        raise typer.Exit(1)
+
+    # Interactive confirmation (unless --yes).
+    if not yes:
+        if apply_to:
+            action = f"Create branch '{apply_to}' and apply patch"
+        else:
+            action = "Apply patch to working tree"
+        confirmed = typer.confirm(f"{action}?")
+        if not confirmed:
+            typer.echo("Aborted.")
+            raise typer.Exit(0)
+
+    # Create branch if requested.
+    if apply_to:
+        ok, detail = create_branch(apply_to, repo_root)
+        if not ok:
+            typer.echo(f"Failed to create branch: {detail}", err=True)
+            raise typer.Exit(1)
+        typer.echo(f"Branch: {detail}")
+
+    # Apply the patch.
+    ok, detail = apply_patch(patch, repo_root)
+    if not ok:
+        typer.echo(f"Apply failed: {detail}", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"Applied: {detail}")
+
+    # Show post-apply diff summary.
+    post_diff = post_apply_diff(repo_root)
+    if post_diff:
+        lines = post_diff.splitlines()
+        files_changed = [l for l in lines if l.startswith("diff --git")]
+        typer.echo(f"\n{len(files_changed)} file(s) modified in working tree.")
+        typer.echo("Review changes with: git diff")
+        if not apply_to:
+            typer.echo("Commit when ready:   git add -p && git commit")
+    else:
+        typer.echo("No visible changes after apply (patch may have been empty).")
 
 
 def _ensure_gitignore_entries(directory: Path) -> list[str]:

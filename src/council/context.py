@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import fnmatch
-import glob as globmod
 import platform
 import subprocess
 import sys
 from pathlib import Path
 
+from council.compat import as_posix, normalize_glob, normalize_path_str
+from council.smart_context import FileRef, extract_file_refs, extract_scope, resolve_ref
 from council.types import ContextMode, ContextSource, DiffScope, GatheredContext, RunOptions
 
 # Files/patterns that are always excluded from inclusion.
@@ -60,7 +61,7 @@ def _matches_exclude(name: str) -> bool:
     each component of the path against all exclude patterns.
     """
     # Normalise separators so Windows paths work too.
-    normalised = name.replace("\\", "/")
+    normalised = normalize_path_str(name)
     parts = normalised.split("/")
 
     for part in parts:
@@ -247,7 +248,7 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
 
     # --- Glob includes ---
     for pattern in opts.include_globs:
-        matched = sorted(globmod.glob(pattern, recursive=True))
+        matched = normalize_glob(pattern, recursive=True)
         for m in matched:
             _include_file(Path(m), opts, sections, sources, priority=30, explicit=False)
 
@@ -256,6 +257,10 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
         for changed in ctx.changed_files:
             fpath = repo_root / changed
             _include_file(fpath, opts, sections, sources, priority=40, explicit=False)
+
+    # --- Smart context: auto-include files referenced in task text ---
+    if opts.smart_context:
+        _include_from_task_refs(opts, repo_root, sections, sources)
 
     # --- Budget enforcement ---
     max_bytes = opts.max_context_kb * 1024
@@ -281,7 +286,7 @@ def _include_file(
     if not path.is_file():
         return
 
-    name = str(path)
+    name = as_posix(path)
 
     # Exclude check.
     if _matches_exclude(name) or _matches_exclude(path.name):
@@ -321,6 +326,108 @@ def _include_file(
 
     label = f"## File: {name}\n```\n{content}\n```"
     sections.append((label, content, priority, src))
+
+
+def _include_from_task_refs(
+    opts: RunOptions,
+    repo_root: Path | None,
+    sections: list[Section],
+    sources: list[ContextSource],
+) -> None:
+    """Parse the task text for file:line references and include relevant scopes.
+
+    For each reference found:
+    - If a line number is present, extract just the enclosing function/class.
+    - If no line number, include the whole file (subject to truncation).
+
+    Already-included paths are skipped to avoid duplication.
+    """
+    refs = extract_file_refs(opts.task)
+    if not refs:
+        return
+
+    # Track paths already in sections to avoid duplicates.
+    already_included: set[str] = set()
+    for _, _, _, src in sections:
+        if src is not None and src.path:
+            already_included.add(src.path)
+
+    for ref in refs:
+        resolved = resolve_ref(ref, repo_root)
+        if resolved is None:
+            continue
+
+        name = as_posix(resolved)
+        if name in already_included:
+            continue
+        already_included.add(name)
+
+        # Exclude/binary checks.
+        if _matches_exclude(name) or _matches_exclude(resolved.name):
+            sources.append(ContextSource(
+                source_type="file",
+                path=name,
+                excluded=True,
+                reason="matched exclude pattern (smart-context)",
+            ))
+            continue
+
+        if _is_binary(resolved):
+            continue
+
+        if ref.line is not None:
+            _include_file_scope(
+                resolved, ref.line, name, opts, sections, sources,
+            )
+        else:
+            _include_file(resolved, opts, sections, sources, priority=55, explicit=False)
+
+
+def _include_file_scope(
+    path: Path,
+    target_line: int,
+    display_name: str,
+    opts: RunOptions,
+    sections: list[Section],
+    sources: list[ContextSource],
+) -> None:
+    """Include just the enclosing scope around *target_line* from *path*.
+
+    Higher priority (70) than generic file includes so scope snippets
+    survive budget enforcement.
+    """
+    try:
+        raw = path.read_bytes()
+    except (OSError, PermissionError):
+        return
+
+    source_text = raw.decode("utf-8", errors="replace")
+    snippet, start_line, end_line = extract_scope(source_text, target_line)
+
+    if not snippet.strip():
+        return
+
+    # Respect per-file size cap.
+    max_bytes = opts.max_file_kb * 1024
+    snippet_bytes = len(snippet.encode("utf-8", errors="replace"))
+    truncated = False
+    if snippet_bytes > max_bytes:
+        snippet, truncated = _truncate_content(snippet, max_bytes)
+
+    src = ContextSource(
+        source_type="file",
+        path=display_name,
+        original_size=len(raw),
+        included_size=len(snippet.encode("utf-8", errors="replace")),
+        truncated=truncated,
+    )
+    sources.append(src)
+
+    label = (
+        f"## File: {display_name} (lines {start_line}-{end_line}, "
+        f"around line {target_line})\n```\n{snippet}\n```"
+    )
+    sections.append((label, snippet, 70, src))
 
 
 def _truncate_fenced_diff(label: str, max_total_bytes: int) -> tuple[str, bool]:

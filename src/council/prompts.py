@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from council.review import JSON_CRITIQUE_SUFFIX
 from council.types import Mode
 
 # ---------------------------------------------------------------------------
@@ -104,9 +105,13 @@ def round1_prompt(mode: Mode, task: str, context: str,
 # ---------------------------------------------------------------------------
 
 def round2_prompt(mode: Mode, task: str, context: str,
-                  claude_improved: str) -> str:
-    """Build Round 2 prompt: Codex provides adversarial critique."""
-    return (
+                  claude_improved: str, *, structured: bool = False) -> str:
+    """Build Round 2 prompt: Codex provides adversarial critique.
+
+    When *structured* is True, appends instructions for JSON output so
+    the critique can be parsed into a ``ReviewResult``.
+    """
+    base = (
         f"{_PREAMBLE}\n\n"
         f"{_MODE_FRAME[mode]}\n\n"
         f"## Task\n{task}\n\n"
@@ -127,6 +132,9 @@ def round2_prompt(mode: Mode, task: str, context: str,
         "Rate your confidence in the proposed solution: 0-100\n"
         "(0 = fundamentally broken, 100 = production-ready with no changes needed)\n"
     )
+    if structured:
+        base += JSON_CRITIQUE_SUFFIX
+    return base
 
 
 # ---------------------------------------------------------------------------

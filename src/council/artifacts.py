@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from council.compat import redact_abs_paths  # cross-platform path redaction
 from council.config import CouncilConfig, redact_env
 from council.types import ContextSource, GatheredContext, RoundResult, RunOptions, ToolResult
 
@@ -43,10 +45,11 @@ def create_run_dir(opts: RunOptions) -> Path:
         run_dir.mkdir(parents=True, exist_ok=True)
 
     # Create subdirectories.
-    (run_dir / "rounds" / "0_generate").mkdir(parents=True, exist_ok=True)
-    (run_dir / "rounds" / "1_claude_improve").mkdir(parents=True, exist_ok=True)
-    (run_dir / "rounds" / "2_codex_critique").mkdir(parents=True, exist_ok=True)
-    (run_dir / "rounds" / "3_claude_finalize").mkdir(parents=True, exist_ok=True)
+    if not opts.no_save:
+        (run_dir / "rounds" / "0_generate").mkdir(parents=True, exist_ok=True)
+        (run_dir / "rounds" / "1_claude_improve").mkdir(parents=True, exist_ok=True)
+        (run_dir / "rounds" / "2_codex_critique").mkdir(parents=True, exist_ok=True)
+        (run_dir / "rounds" / "3_claude_finalize").mkdir(parents=True, exist_ok=True)
     (run_dir / "final").mkdir(parents=True, exist_ok=True)
 
     return run_dir
@@ -174,6 +177,17 @@ def write_manifest(
             }
         manifest["rounds"].append(round_data)
 
+    # Apply path redaction to manifest if requested.
+    if opts.redact_paths:
+        manifest["task_preview"] = redact_abs_paths(manifest["task_preview"])
+        ctx_section = manifest["context"]
+        ctx_section["files_included"] = [
+            redact_abs_paths(p) for p in ctx_section["files_included"]
+        ]
+        ctx_section["files_truncated"] = [
+            redact_abs_paths(p) for p in ctx_section["files_truncated"]
+        ]
+
     (run_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, default=str), encoding="utf-8"
     )
@@ -228,3 +242,47 @@ def _redact_command(cmd: list[str]) -> list[str]:
             redacted.append(arg)
 
     return redacted
+
+
+def write_minimal_manifest(
+    run_dir: Path,
+    opts: RunOptions,
+    start_time: datetime,
+    end_time: datetime,
+) -> None:
+    """Write a slim manifest.json for --no-save mode.
+
+    Contains only timing, mode, and tool names — no context details,
+    file lists, or round-level data.
+    """
+    manifest: dict = {
+        "version": "1.0",
+        "mode": opts.mode.value,
+        "task_preview": "(not saved)",
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
+        "total_duration_sec": (end_time - start_time).total_seconds(),
+        "no_save": True,
+        "options": {
+            "timeout_sec": opts.timeout_sec,
+            "tools_requested": opts.tools,
+        },
+    }
+    (run_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, default=str), encoding="utf-8"
+    )
+
+
+def cleanup_intermediates(run_dir: Path) -> None:
+    """Remove intermediate artifacts, keeping only final/ and manifest.json.
+
+    Used by --no-save to strip everything except the end result.
+    """
+    for name in ("task.md", "context.md", "context_sources.json", "state.json"):
+        path = run_dir / name
+        if path.exists():
+            path.unlink()
+
+    rounds_dir = run_dir / "rounds"
+    if rounds_dir.exists():
+        shutil.rmtree(rounds_dir)
