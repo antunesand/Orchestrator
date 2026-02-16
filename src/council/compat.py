@@ -7,9 +7,8 @@ Windows produces the same forward-slash paths used on macOS / Linux.
 from __future__ import annotations
 
 import glob as globmod
-import os
 import re
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 
 def normalize_path_str(path: str) -> str:

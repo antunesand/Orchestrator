@@ -239,24 +239,20 @@ def _find_scope_end(lines: list[str], scope_start: int, target_idx: int) -> int:
     # Indentation-based: body lines have indent > start_indent.
     body_started = False
     last_nonempty = target_idx
-    end = target_idx
 
     for i in range(scope_start + 1, len(lines)):
         stripped = lines[i].rstrip()
         if not stripped:
-            end = i
             continue
         indent = _indent_level(lines[i])
         if indent > start_indent:
             body_started = True
-            end = i
             last_nonempty = i
         elif body_started:
             # Back to same/lower indent — scope ended.
             break
         else:
             # Still on the signature line (e.g. multi-line function args).
-            end = i
             last_nonempty = i
 
     # Don't include trailing blank lines as part of the scope itself —

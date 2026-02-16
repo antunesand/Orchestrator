@@ -313,6 +313,7 @@ def apply_cmd(
     check: Annotated[bool, typer.Option("--check", help="Dry-run: verify the patch applies cleanly without modifying files")] = False,
     diff: Annotated[bool, typer.Option("--diff", help="Show a syntax-highlighted preview of the patch before applying")] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
+    force: Annotated[bool, typer.Option("--force", help="Apply even if the working tree has uncommitted changes")] = False,
 ) -> None:
     """Apply a patch from a previous council run to the current repository.
 
@@ -345,6 +346,21 @@ def apply_cmd(
         typer.echo("Error: not inside a git repository.", err=True)
         raise typer.Exit(1)
 
+    # Check for dirty working tree (skip for --check which is read-only).
+    if not check:
+        clean, wt_status = working_tree_clean(repo_root)
+        if not clean and not force:
+            typer.echo("Error: working tree has uncommitted changes:\n", err=True)
+            typer.echo(wt_status, err=True)
+            typer.echo(
+                "\nApplying a patch on a dirty tree may mix your changes with the patch.\n"
+                "Use --force to apply anyway, or commit/stash your changes first.",
+                err=True,
+            )
+            raise typer.Exit(1)
+        if not clean and force:
+            typer.echo("Warning: working tree has uncommitted changes (--force).", err=True)
+
     # Show diff preview if requested, or always in interactive mode.
     if diff or (not yes and not check):
         typer.echo("")
@@ -370,10 +386,7 @@ def apply_cmd(
 
     # Interactive confirmation (unless --yes).
     if not yes:
-        if apply_to:
-            action = f"Create branch '{apply_to}' and apply patch"
-        else:
-            action = "Apply patch to working tree"
+        action = f"Create branch '{apply_to}' and apply patch" if apply_to else "Apply patch to working tree"
         confirmed = typer.confirm(f"{action}?")
         if not confirmed:
             typer.echo("Aborted.")
@@ -399,7 +412,7 @@ def apply_cmd(
     post_diff = post_apply_diff(repo_root)
     if post_diff:
         lines = post_diff.splitlines()
-        files_changed = [l for l in lines if l.startswith("diff --git")]
+        files_changed = [line for line in lines if line.startswith("diff --git")]
         typer.echo(f"\n{len(files_changed)} file(s) modified in working tree.")
         typer.echo("Review changes with: git diff")
         if not apply_to:
@@ -653,6 +666,52 @@ def _check_codex_auth() -> bool | None:
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return None
+
+
+@app.command(name="list")
+def list_runs(
+    outdir: Annotated[Path, typer.Option("--outdir", help="Output directory to scan")] = Path("runs"),
+    limit: Annotated[int, typer.Option("--limit", "-n", help="Maximum number of runs to show")] = 20,
+) -> None:
+    """List recent council runs with status and metadata."""
+    if not outdir.is_dir():
+        typer.echo(f"No runs directory found at: {outdir}", err=True)
+        raise typer.Exit(1)
+
+    import json as _json
+
+    # Collect run directories (sorted newest first by name).
+    run_dirs = sorted(
+        [d for d in outdir.iterdir() if d.is_dir() and (d / "state.json").exists()],
+        key=lambda d: d.name,
+        reverse=True,
+    )
+
+    if not run_dirs:
+        typer.echo(f"No council runs found in {outdir}/")
+        return
+
+    typer.echo(f"{'RUN':50s}  {'MODE':8s}  {'STATUS':10s}  {'ROUNDS':20s}")
+    typer.echo("-" * 92)
+
+    for run_dir in run_dirs[:limit]:
+        try:
+            state = _json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+
+        mode = state.get("mode", "?")
+        status = state.get("status", "?")
+        rounds_info = state.get("rounds", {})
+        round_summary = " ".join(
+            f"{rname.split('_')[0]}:{rinfo.get('status', '?')[:2]}"
+            for rname, rinfo in rounds_info.items()
+        )
+
+        typer.echo(f"{run_dir.name:50s}  {mode:8s}  {status:10s}  {round_summary}")
+
+    if len(run_dirs) > limit:
+        typer.echo(f"\n({len(run_dirs) - limit} more runs not shown; use --limit to see more)")
 
 
 def app_main() -> None:

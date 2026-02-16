@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path, PurePosixPath
-from unittest.mock import patch
+from pathlib import Path
 
 from council.compat import (
     _UNIX_ABS_RE,

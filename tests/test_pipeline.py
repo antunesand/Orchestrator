@@ -53,6 +53,59 @@ class TestPipelineDryRun:
         # No stdout files (tools weren't called).
         assert not (r0_dir / "claude_stdout.md").exists()
 
+    @pytest.mark.asyncio
+    async def test_dry_run_marks_state_dry_run(self, tmp_path: Path):
+        """Dry run should set state.status to 'dry_run' and all rounds to 'skipped'."""
+        opts = RunOptions(
+            mode=Mode.FIX,
+            task="Fix the login bug",
+            outdir=tmp_path,
+            dry_run=True,
+        )
+        config = CouncilConfig.defaults()
+
+        with patch("council.pipeline.find_repo_root", return_value=None):
+            run_dir = await run_pipeline(opts, config)
+
+        state = json.loads((run_dir / "state.json").read_text())
+        assert state["status"] == "dry_run"
+        for rname in ("0_generate", "1_claude_improve", "2_codex_critique", "3_claude_finalize"):
+            assert state["rounds"][rname]["status"] == "skipped"
+
+    @pytest.mark.asyncio
+    async def test_dry_run_does_not_mark_failed(self, tmp_path: Path):
+        """Dry run must never set status to 'failed'."""
+        opts = RunOptions(
+            mode=Mode.FEATURE,
+            task="Add feature",
+            outdir=tmp_path,
+            dry_run=True,
+        )
+        config = CouncilConfig.defaults()
+
+        with patch("council.pipeline.find_repo_root", return_value=None):
+            run_dir = await run_pipeline(opts, config)
+
+        state = json.loads((run_dir / "state.json").read_text())
+        assert state["status"] != "failed"
+        assert state["finished_at"] is not None
+
+
+class TestDryRunCLIExitCode:
+    def test_dry_run_exits_zero(self, tmp_path: Path):
+        """council fix --dry-run should exit with code 0."""
+        from typer.testing import CliRunner
+
+        from council.cli import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, [
+            "fix", "test task",
+            "--dry-run",
+            "--outdir", str(tmp_path),
+        ])
+        assert result.exit_code == 0
+
 
 class TestPipelineFullRun:
     @pytest.mark.asyncio

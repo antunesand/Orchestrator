@@ -5,15 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from council.smart_context import (
     FileRef,
     extract_file_refs,
     extract_scope,
     resolve_ref,
 )
-
 
 # ---------------------------------------------------------------------------
 # extract_file_refs — traceback / log parsing
@@ -68,7 +65,7 @@ runtime.main()
 	/usr/local/go/src/runtime/proc.go:250 +0x1c0'''
         refs = extract_file_refs(text)
         paths = [(r.path, r.line) for r in refs]
-        assert any("main.go" in p and l == 42 for p, l in paths)
+        assert any("main.go" in p and ln == 42 for p, ln in paths)
 
 
 class TestExtractFileRefsRust:
@@ -336,7 +333,7 @@ class TestSmartContextIntegration:
         task = (
             'Fix this error:\n'
             'Traceback (most recent call last):\n'
-            f'  File "src/auth.py", line 2, in login\n'
+            '  File "src/auth.py", line 2, in login\n'
             '    token = get_token(user)\n'
             'NameError: name \'get_token\' is not defined'
         )
@@ -348,10 +345,12 @@ class TestSmartContextIntegration:
             smart_context=True,
         )
 
-        with patch("council.context._run_git", return_value=None):
-            with patch("council.smart_context.resolve_ref") as mock_resolve:
-                mock_resolve.return_value = auth_file
-                ctx = gather_context(opts, repo_root=tmp_path)
+        with (
+            patch("council.context._run_git", return_value=None),
+            patch("council.smart_context.resolve_ref") as mock_resolve,
+        ):
+            mock_resolve.return_value = auth_file
+            ctx = gather_context(opts, repo_root=tmp_path)
 
         # The auth.py file should be included in context.
         file_sources = [s for s in ctx.sources if s.source_type == "file" and s.path]
@@ -391,7 +390,7 @@ class TestSmartContextIntegration:
         from council.context import gather_context
         from council.types import ContextMode, Mode, RunOptions
 
-        task = f'Error in app.py:1'
+        task = 'Error in app.py:1'
 
         opts = RunOptions(
             mode=Mode.FIX,
@@ -425,9 +424,11 @@ class TestSmartContextIntegration:
             smart_context=True,
         )
 
-        with patch("council.context._run_git", return_value=None):
-            with patch("council.smart_context.resolve_ref", return_value=env_file):
-                ctx = gather_context(opts, repo_root=tmp_path)
+        with (
+            patch("council.context._run_git", return_value=None),
+            patch("council.smart_context.resolve_ref", return_value=env_file),
+        ):
+            ctx = gather_context(opts, repo_root=tmp_path)
 
         # .env should be excluded.
         excluded = [s for s in ctx.sources if s.excluded and s.path and ".env" in s.path]

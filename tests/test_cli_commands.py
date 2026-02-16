@@ -227,3 +227,71 @@ class TestDoctor:
         with self._patch_doctor(tmp_path, version_rv="v1.0"):
             result = runner.invoke(app, ["doctor", "--config", str(cfg_file)])
         assert str(cfg_file) in result.output
+
+
+class TestListRuns:
+    """Tests for `council list`."""
+
+    def test_empty_runs_dir(self, tmp_path: Path):
+        """list shows a message when no runs exist."""
+        runs = tmp_path / "runs"
+        runs.mkdir()
+        result = runner.invoke(app, ["list", "--outdir", str(runs)])
+        assert "No council runs found" in result.output
+
+    def test_missing_runs_dir(self, tmp_path: Path):
+        """list exits 1 when runs directory doesn't exist."""
+        result = runner.invoke(app, ["list", "--outdir", str(tmp_path / "missing")])
+        assert result.exit_code == 1
+
+    def test_lists_runs_with_state(self, tmp_path: Path):
+        """list shows runs that have state.json."""
+        import json
+
+        runs = tmp_path / "runs"
+        runs.mkdir()
+
+        # Create two run directories with state.json.
+        for name, mode, status in [
+            ("2025-06-15_143022_fix_auth", "fix", "completed"),
+            ("2025-06-16_100000_feature_dark", "feature", "failed"),
+        ]:
+            d = runs / name
+            d.mkdir()
+            state = {
+                "mode": mode,
+                "status": status,
+                "rounds": {
+                    "0_generate": {"status": "ok"},
+                    "1_claude_improve": {"status": "ok"},
+                    "2_codex_critique": {"status": "ok" if status == "completed" else "failed"},
+                    "3_claude_finalize": {"status": "ok" if status == "completed" else "pending"},
+                },
+            }
+            (d / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        result = runner.invoke(app, ["list", "--outdir", str(runs)])
+        assert result.exit_code == 0
+        assert "fix" in result.output
+        assert "feature" in result.output
+        assert "completed" in result.output
+        assert "failed" in result.output
+
+    def test_limit_flag(self, tmp_path: Path):
+        """list respects --limit flag."""
+        import json
+
+        runs = tmp_path / "runs"
+        runs.mkdir()
+
+        for i in range(5):
+            d = runs / f"run_{i:03d}"
+            d.mkdir()
+            (d / "state.json").write_text(json.dumps({
+                "mode": "fix", "status": "completed",
+                "rounds": {"0_generate": {"status": "ok"}},
+            }), encoding="utf-8")
+
+        result = runner.invoke(app, ["list", "--outdir", str(runs), "--limit", "2"])
+        assert result.exit_code == 0
+        assert "3 more runs not shown" in result.output

@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from council.apply import (
     apply_patch,
@@ -17,7 +15,6 @@ from council.apply import (
     show_diff_preview,
     working_tree_clean,
 )
-
 
 # ---------------------------------------------------------------------------
 # load_patch
@@ -199,6 +196,7 @@ class TestApplyCLI:
 
     def test_missing_run_dir(self):
         from typer.testing import CliRunner
+
         from council.cli import app
 
         runner = CliRunner()
@@ -208,6 +206,7 @@ class TestApplyCLI:
 
     def test_no_patch_file(self, tmp_path: Path):
         from typer.testing import CliRunner
+
         from council.cli import app
 
         # Create a run dir without final.patch
@@ -222,6 +221,7 @@ class TestApplyCLI:
 
     def test_check_mode_success(self, tmp_path: Path):
         from typer.testing import CliRunner
+
         from council.cli import app
 
         run = tmp_path / "run"
@@ -241,6 +241,7 @@ class TestApplyCLI:
 
     def test_check_mode_failure(self, tmp_path: Path):
         from typer.testing import CliRunner
+
         from council.cli import app
 
         run = tmp_path / "run"
@@ -259,6 +260,7 @@ class TestApplyCLI:
 
     def test_apply_with_yes(self, tmp_path: Path):
         from typer.testing import CliRunner
+
         from council.cli import app
 
         run = tmp_path / "run"
@@ -278,6 +280,7 @@ class TestApplyCLI:
 
         runner = CliRunner()
         with patch("council.cli.find_repo_root", return_value=tmp_path), \
+             patch("council.cli.working_tree_clean", return_value=(True, "")), \
              patch("council.apply.subprocess.run", side_effect=mock_run), \
              patch("council.apply._git", return_value=mock_git_result):
             result = runner.invoke(app, ["apply", str(run), "--yes"])
@@ -286,6 +289,7 @@ class TestApplyCLI:
 
     def test_apply_to_branch(self, tmp_path: Path):
         from typer.testing import CliRunner
+
         from council.cli import app
 
         run = tmp_path / "run"
@@ -293,12 +297,9 @@ class TestApplyCLI:
         (run / "final").mkdir()
         (run / "final" / "final.patch").write_text("--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-old\n+new\n")
 
-        call_count = {"n": 0}
-
         def mock_run(*args, **kwargs):
             return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="ok")
 
-        mock_branch = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
         mock_diff = subprocess.CompletedProcess(
             args=[], returncode=0,
             stdout="diff --git a/f.py b/f.py\n",
@@ -307,6 +308,7 @@ class TestApplyCLI:
 
         runner = CliRunner()
         with patch("council.cli.find_repo_root", return_value=tmp_path), \
+             patch("council.cli.working_tree_clean", return_value=(True, "")), \
              patch("council.apply.subprocess.run", side_effect=mock_run), \
              patch("council.apply._git", return_value=mock_diff):
             result = runner.invoke(app, ["apply", str(run), "--apply-to", "fix/auth", "--yes"])
@@ -314,6 +316,7 @@ class TestApplyCLI:
 
     def test_not_in_git_repo(self, tmp_path: Path):
         from typer.testing import CliRunner
+
         from council.cli import app
 
         run = tmp_path / "run"
@@ -326,3 +329,71 @@ class TestApplyCLI:
             result = runner.invoke(app, ["apply", str(run), "--yes"])
         assert result.exit_code != 0
         assert "git repository" in result.output.lower() or "error" in result.output.lower()
+
+    def test_dirty_tree_blocks_apply(self, tmp_path: Path):
+        """Apply should refuse on a dirty working tree without --force."""
+        from typer.testing import CliRunner
+
+        from council.cli import app
+
+        run = tmp_path / "run"
+        run.mkdir()
+        (run / "final").mkdir()
+        (run / "final" / "final.patch").write_text("--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-old\n+new\n")
+
+        runner = CliRunner()
+        with patch("council.cli.find_repo_root", return_value=tmp_path), \
+             patch("council.cli.working_tree_clean", return_value=(False, " M src/app.py")):
+            result = runner.invoke(app, ["apply", str(run), "--yes"])
+        assert result.exit_code != 0
+        assert "uncommitted" in result.output.lower()
+
+    def test_dirty_tree_with_force(self, tmp_path: Path):
+        """Apply should proceed on a dirty tree when --force is given."""
+        from typer.testing import CliRunner
+
+        from council.cli import app
+
+        run = tmp_path / "run"
+        run.mkdir()
+        (run / "final").mkdir()
+        (run / "final" / "final.patch").write_text("--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-old\n+new\n")
+
+        def mock_run(*args, **kwargs):
+            return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="ok")
+
+        mock_diff = subprocess.CompletedProcess(
+            args=[], returncode=0,
+            stdout="diff --git a/f.py b/f.py\n",
+            stderr="",
+        )
+
+        runner = CliRunner()
+        with patch("council.cli.find_repo_root", return_value=tmp_path), \
+             patch("council.cli.working_tree_clean", return_value=(False, " M src/app.py")), \
+             patch("council.apply.subprocess.run", side_effect=mock_run), \
+             patch("council.apply._git", return_value=mock_diff):
+            result = runner.invoke(app, ["apply", str(run), "--yes", "--force"])
+        assert result.exit_code == 0
+        assert "warning" in result.output.lower()
+
+    def test_check_mode_skips_dirty_tree_check(self, tmp_path: Path):
+        """--check (read-only) should not care about dirty working tree."""
+        from typer.testing import CliRunner
+
+        from council.cli import app
+
+        run = tmp_path / "run"
+        run.mkdir()
+        (run / "final").mkdir()
+        (run / "final" / "final.patch").write_text("--- a/f\n+++ b/f\n")
+
+        mock_check = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr="ok"
+        )
+        runner = CliRunner()
+        with patch("council.cli.find_repo_root", return_value=tmp_path), \
+             patch("council.apply.subprocess.run", return_value=mock_check):
+            # Note: no working_tree_clean mock — if it were called it would error.
+            result = runner.invoke(app, ["apply", str(run), "--check"])
+        assert result.exit_code == 0

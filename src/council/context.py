@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from council.compat import as_posix, normalize_glob, normalize_path_str
-from council.smart_context import FileRef, extract_file_refs, extract_scope, resolve_ref
+from council.smart_context import extract_file_refs, extract_scope, resolve_ref
 from council.types import ContextMode, ContextSource, DiffScope, GatheredContext, RunOptions
 
 # Files/patterns that are always excluded from inclusion.

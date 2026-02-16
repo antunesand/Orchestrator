@@ -13,7 +13,6 @@ from council.config import CouncilConfig
 from council.pipeline import run_pipeline
 from council.types import Mode, RunOptions, ToolResult
 
-
 # ---------------------------------------------------------------------------
 # redact_abs_paths unit tests
 # ---------------------------------------------------------------------------
