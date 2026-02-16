@@ -198,3 +198,32 @@ class TestDoctor:
         with self._patch_doctor(tmp_path, auth_rv=None):
             result = runner.invoke(app, ["doctor"])
         assert "unknown" in result.output
+
+    def test_extra_args_redacted_in_output(self, tmp_path: Path):
+        """doctor redacts sensitive values in extra_args (e.g. --api-key)."""
+        cfg_content = (
+            "tools:\n"
+            "  claude:\n"
+            "    command: ['claude']\n"
+            "    extra_args: ['-p', '--api-key', 'sk-secret-123']\n"
+        )
+        cfg_file = tmp_path / ".council.yml"
+        cfg_file.write_text(cfg_content, encoding="utf-8")
+        with self._patch_doctor(tmp_path, version_rv="v1.0"):
+            result = runner.invoke(app, ["doctor"])
+        assert "sk-secret-123" not in result.output
+        assert "***REDACTED***" in result.output
+
+    def test_config_flag(self, tmp_path: Path):
+        """doctor --config loads the specified config file."""
+        cfg_content = (
+            "tools:\n"
+            "  claude:\n"
+            "    command: ['claude']\n"
+            "    extra_args: ['-p']\n"
+        )
+        cfg_file = tmp_path / "custom.yml"
+        cfg_file.write_text(cfg_content, encoding="utf-8")
+        with self._patch_doctor(tmp_path, version_rv="v1.0"):
+            result = runner.invoke(app, ["doctor", "--config", str(cfg_file)])
+        assert str(cfg_file) in result.output
