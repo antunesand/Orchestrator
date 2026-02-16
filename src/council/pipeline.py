@@ -9,13 +9,16 @@ from pathlib import Path
 from rich.console import Console
 
 from council.artifacts import (
+    cleanup_intermediates,
     create_run_dir,
+    redact_abs_paths,
     save_context,
     save_final,
     save_round,
     save_round0,
     save_task,
     write_manifest,
+    write_minimal_manifest,
 )
 from council.config import CouncilConfig, find_repo_root
 from council.context import gather_context
@@ -128,12 +131,16 @@ async def run_pipeline(opts: RunOptions, config: CouncilConfig) -> Path:
 
     # --- Create run directory ---
     run_dir = create_run_dir(opts)
-    save_task(run_dir, opts.task)
-    save_context(run_dir, ctx)
+    no_save = opts.no_save
+    if not no_save:
+        save_task(run_dir, opts.task)
+        save_context(run_dir, ctx)
     _print_verbose(f"Run directory: {run_dir}", verbose)
 
-    # Initialize checkpoint state.
-    state = init_state(run_dir, opts.mode.value, opts.task, opts.tools)
+    # Initialize checkpoint state (skipped in no-save mode).
+    state: dict = {}
+    if not no_save:
+        state = init_state(run_dir, opts.mode.value, opts.task, opts.tools)
 
     rounds: list[RoundResult] = []
     tool_names = opts.tools
@@ -143,7 +150,8 @@ async def run_pipeline(opts: RunOptions, config: CouncilConfig) -> Path:
 
     if not has_claude and not has_codex:
         _print_progress("[bold red]ERROR:[/bold red] No tools configured. Need at least 'claude' or 'codex'.")
-        mark_finished(run_dir, state, status="failed")
+        if not no_save:
+            mark_finished(run_dir, state, status="failed")
         _finalize_manifest(run_dir, opts, config, ctx, rounds, start_time)
         return run_dir
 
@@ -166,19 +174,27 @@ async def run_pipeline(opts: RunOptions, config: CouncilConfig) -> Path:
 
     if result is None:
         # Pipeline aborted (both tools failed in R0).
-        mark_finished(run_dir, state, status="failed")
+        if not no_save:
+            mark_finished(run_dir, state, status="failed")
         _finalize_manifest(run_dir, opts, config, ctx, rounds, start_time)
         return run_dir
 
     # --- Finalize ---
     final_output = result
+    if opts.redact_paths:
+        final_output = redact_abs_paths(final_output)
+
     summary = _make_summary(final_output)
     patch_path = str(run_dir / "final" / "final.patch")
     patch = extract_and_save(final_output, patch_path)
     save_final(run_dir, final_output, patch, summary)
 
-    mark_finished(run_dir, state, status="completed")
+    if not no_save:
+        mark_finished(run_dir, state, status="completed")
     _finalize_manifest(run_dir, opts, config, ctx, rounds, start_time)
+
+    if no_save:
+        cleanup_intermediates(run_dir)
 
     _print_progress(f"Done! Results in: {run_dir}")
     _print_progress(f"  Final output: {run_dir / 'final' / 'final.md'}")
@@ -314,6 +330,7 @@ async def _run_rounds(
     Returns the final output text, or None if the pipeline must abort.
     """
     verbose = opts.verbose
+    no_save = opts.no_save
     retry_failed = retry_failed or set()
 
     # Helper to decide whether a round should actually execute.
@@ -340,7 +357,8 @@ async def _run_rounds(
 
     if opts.dry_run:
         _print_progress("DRY RUN: writing prompts and context, then exiting.")
-        save_round0(run_dir, r0_prompts, {})
+        if not no_save:
+            save_round0(run_dir, r0_prompts, {})
         return None
 
     if _should_run("0_generate"):
@@ -348,13 +366,15 @@ async def _run_rounds(
         for name in r0_prompts:
             _print_verbose(f"Calling {name}: {' '.join(config.tools[name].command)}", verbose)
 
-        update_round(run_dir, state, "0_generate", RoundStatus.RUNNING)
+        if not no_save:
+            update_round(run_dir, state, "0_generate", RoundStatus.RUNNING)
 
         r0_configs = {n: config.tools[n] for n in r0_prompts if n in config.tools}
         r0_results = await run_tools_parallel(
             r0_configs, r0_prompts, timeout_sec=opts.timeout_sec, cwd=repo_root
         )
-        save_round0(run_dir, r0_prompts, r0_results)
+        if not no_save:
+            save_round0(run_dir, r0_prompts, r0_results)
 
         r0_round = RoundResult(round_name="0_generate", results=r0_results)
         rounds.append(r0_round)
@@ -371,10 +391,12 @@ async def _run_rounds(
 
         if not claude_r0_out and not codex_r0_out:
             _print_progress("[bold red]ERROR:[/bold red] Both tools failed in Round 0. Cannot continue.")
-            update_round(run_dir, state, "0_generate", RoundStatus.FAILED, _round_tool_statuses(r0_results))
+            if not no_save:
+                update_round(run_dir, state, "0_generate", RoundStatus.FAILED, _round_tool_statuses(r0_results))
             return None
 
-        update_round(run_dir, state, "0_generate", RoundStatus.OK, _round_tool_statuses(r0_results))
+        if not no_save:
+            update_round(run_dir, state, "0_generate", RoundStatus.OK, _round_tool_statuses(r0_results))
     else:
         _print_progress("Round 0: Reusing previous results (skipped)")
         claude_r0_out = _load_round_output(run_dir, "0_generate", "claude")
@@ -402,23 +424,27 @@ async def _run_rounds(
         if opts.print_prompts:
             print(f"\n{'='*60}\nRound 1 prompt:\n{'='*60}\n{r1_prompt}\n", file=sys.stderr)
 
-        update_round(run_dir, state, "1_claude_improve", RoundStatus.RUNNING)
+        if not no_save:
+            update_round(run_dir, state, "1_claude_improve", RoundStatus.RUNNING)
 
         r1_result = await run_tool(
             "claude", config.tools["claude"], r1_prompt,
             timeout_sec=opts.timeout_sec, cwd=repo_root,
         )
-        save_round(run_dir, "1_claude_improve", r1_prompt, r1_result)
+        if not no_save:
+            save_round(run_dir, "1_claude_improve", r1_prompt, r1_result)
         rounds.append(RoundResult(round_name="1_claude_improve", results={"claude": r1_result}))
 
         _print_progress(f"  claude: {_tool_status_str(r1_result)} ({r1_result.duration_sec:.1f}s)")
 
         if _tool_ok(r1_result):
             claude_improved = r1_result.stdout
-            update_round(run_dir, state, "1_claude_improve", RoundStatus.OK, {"claude": "ok"})
+            if not no_save:
+                update_round(run_dir, state, "1_claude_improve", RoundStatus.OK, {"claude": "ok"})
         else:
             claude_improved = claude_r0_out
-            update_round(run_dir, state, "1_claude_improve", RoundStatus.FAILED, {"claude": "failed"})
+            if not no_save:
+                update_round(run_dir, state, "1_claude_improve", RoundStatus.FAILED, {"claude": "failed"})
     else:
         _print_progress("Round 1: Reusing previous results (skipped)")
         claude_improved = _load_round_output(run_dir, "1_claude_improve", "claude") or claude_r0_out
@@ -433,23 +459,27 @@ async def _run_rounds(
             if opts.print_prompts:
                 print(f"\n{'='*60}\nRound 2 prompt:\n{'='*60}\n{r2_prompt}\n", file=sys.stderr)
 
-            update_round(run_dir, state, "2_codex_critique", RoundStatus.RUNNING)
+            if not no_save:
+                update_round(run_dir, state, "2_codex_critique", RoundStatus.RUNNING)
 
             r2_result = await run_tool(
                 "codex", config.tools["codex"], r2_prompt,
                 timeout_sec=opts.timeout_sec, cwd=repo_root,
             )
-            save_round(run_dir, "2_codex_critique", r2_prompt, r2_result)
+            if not no_save:
+                save_round(run_dir, "2_codex_critique", r2_prompt, r2_result)
             rounds.append(RoundResult(round_name="2_codex_critique", results={"codex": r2_result}))
 
             _print_progress(f"  codex: {_tool_status_str(r2_result)} ({r2_result.duration_sec:.1f}s)")
 
             if _tool_ok(r2_result):
                 codex_critique = r2_result.stdout
-                update_round(run_dir, state, "2_codex_critique", RoundStatus.OK, {"codex": "ok"})
+                if not no_save:
+                    update_round(run_dir, state, "2_codex_critique", RoundStatus.OK, {"codex": "ok"})
             else:
                 codex_critique = "(Codex critique unavailable.)"
-                update_round(run_dir, state, "2_codex_critique", RoundStatus.FAILED, {"codex": "failed"})
+                if not no_save:
+                    update_round(run_dir, state, "2_codex_critique", RoundStatus.FAILED, {"codex": "failed"})
         else:
             _print_progress("Round 2: Reusing previous results (skipped)")
             codex_critique = _load_round_output(run_dir, "2_codex_critique", "codex") or "(Codex critique unavailable.)"
@@ -457,7 +487,8 @@ async def _run_rounds(
         if has_codex and not codex_available:
             _print_progress("Round 2: Skipped (Codex failed in Round 0)")
         codex_critique = "(Codex was not available for critique.)"
-        update_round(run_dir, state, "2_codex_critique", RoundStatus.SKIPPED)
+        if not no_save:
+            update_round(run_dir, state, "2_codex_critique", RoundStatus.SKIPPED)
 
     # ---- Round 3: Claude finalizes ----
     if _should_run("3_claude_finalize"):
@@ -468,23 +499,27 @@ async def _run_rounds(
         if opts.print_prompts:
             print(f"\n{'='*60}\nRound 3 prompt:\n{'='*60}\n{r3_prompt}\n", file=sys.stderr)
 
-        update_round(run_dir, state, "3_claude_finalize", RoundStatus.RUNNING)
+        if not no_save:
+            update_round(run_dir, state, "3_claude_finalize", RoundStatus.RUNNING)
 
         r3_result = await run_tool(
             "claude", config.tools["claude"], r3_prompt,
             timeout_sec=opts.timeout_sec, cwd=repo_root,
         )
-        save_round(run_dir, "3_claude_finalize", r3_prompt, r3_result)
+        if not no_save:
+            save_round(run_dir, "3_claude_finalize", r3_prompt, r3_result)
         rounds.append(RoundResult(round_name="3_claude_finalize", results={"claude": r3_result}))
 
         _print_progress(f"  claude: {_tool_status_str(r3_result)} ({r3_result.duration_sec:.1f}s)")
 
         if _tool_ok(r3_result):
             final_output = r3_result.stdout
-            update_round(run_dir, state, "3_claude_finalize", RoundStatus.OK, {"claude": "ok"})
+            if not no_save:
+                update_round(run_dir, state, "3_claude_finalize", RoundStatus.OK, {"claude": "ok"})
         else:
             final_output = claude_improved
-            update_round(run_dir, state, "3_claude_finalize", RoundStatus.FAILED, {"claude": "failed"})
+            if not no_save:
+                update_round(run_dir, state, "3_claude_finalize", RoundStatus.FAILED, {"claude": "failed"})
     else:
         _print_progress("Round 3: Reusing previous results (skipped)")
         final_output = _load_round_output(run_dir, "3_claude_finalize", "claude") or claude_improved
@@ -510,4 +545,7 @@ def _finalize_manifest(
 ) -> None:
     """Write the manifest with timing info."""
     end_time = datetime.now(UTC)
-    write_manifest(run_dir, opts, config, ctx, rounds, start_time, end_time)
+    if opts.no_save:
+        write_minimal_manifest(run_dir, opts, start_time, end_time)
+    else:
+        write_manifest(run_dir, opts, config, ctx, rounds, start_time, end_time)

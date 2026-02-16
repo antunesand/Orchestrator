@@ -112,4 +112,6 @@ class RunOptions:
     dry_run: bool = False
     print_prompts: bool = False
     verbose: bool = False
+    no_save: bool = False
+    redact_paths: bool = False
     config_path: Path | None = None

@@ -61,6 +61,8 @@ def _common_options(
     dry_run: bool = False,
     print_prompts: bool = False,
     verbose: bool = False,
+    no_save: bool = False,
+    redact_paths: bool = False,
     config: Path | None = None,
 ) -> RunOptions:
     """Build RunOptions from CLI arguments."""
@@ -94,6 +96,8 @@ def _common_options(
         dry_run=dry_run,
         print_prompts=print_prompts,
         verbose=verbose,
+        no_save=no_save,
+        redact_paths=redact_paths,
         config_path=config,
     )
 
@@ -136,6 +140,8 @@ def fix(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
+    redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Fix a bug or error using the multi-LLM council."""
@@ -145,7 +151,8 @@ def fix(
         include_from_diff=include_from_diff, max_context_kb=max_context_kb,
         max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
         tools=tools, dry_run=dry_run, print_prompts=print_prompts,
-        verbose=verbose, config=config,
+        verbose=verbose, no_save=no_save, redact_paths=redact_paths,
+        config=config,
     )
     _run(opts)
 
@@ -167,6 +174,8 @@ def feature(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
+    redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Implement a new feature using the multi-LLM council."""
@@ -176,7 +185,8 @@ def feature(
         include_from_diff=include_from_diff, max_context_kb=max_context_kb,
         max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
         tools=tools, dry_run=dry_run, print_prompts=print_prompts,
-        verbose=verbose, config=config,
+        verbose=verbose, no_save=no_save, redact_paths=redact_paths,
+        config=config,
     )
     _run(opts)
 
@@ -198,6 +208,8 @@ def review(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
+    redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Review code changes using the multi-LLM council."""
@@ -207,7 +219,8 @@ def review(
         include_from_diff=include_from_diff, max_context_kb=max_context_kb,
         max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
         tools=tools, dry_run=dry_run, print_prompts=print_prompts,
-        verbose=verbose, config=config,
+        verbose=verbose, no_save=no_save, redact_paths=redact_paths,
+        config=config,
     )
     _run(opts)
 
