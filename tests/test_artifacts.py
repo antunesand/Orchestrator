@@ -146,6 +146,7 @@ class TestManifest:
 
     def test_env_redaction_in_manifest(self, basic_opts: RunOptions):
         from council.config import redact_env
+
         env = {"OPENAI_API_KEY": "sk-secret", "HOME": "/home/user"}
         redacted = redact_env(env)
         assert redacted["OPENAI_API_KEY"] == "***REDACTED***"
@@ -221,12 +222,14 @@ class TestManifestToolConfigRedaction:
         """extra_args containing --api-key=sk-... must be redacted in manifest."""
         from council.config import CouncilConfig, ToolConfig
 
-        config = CouncilConfig(tools={
-            "claude": ToolConfig(
-                command=["claude"],
-                extra_args=["--api-key=sk-live-secret123", "--verbose"],
-            ),
-        })
+        config = CouncilConfig(
+            tools={
+                "claude": ToolConfig(
+                    command=["claude"],
+                    extra_args=["--api-key=sk-live-secret123", "--verbose"],
+                ),
+            }
+        )
         run_dir = create_run_dir(basic_opts)
         ctx = GatheredContext(text="ctx", sources=[], total_size=3)
         start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -245,12 +248,14 @@ class TestManifestToolConfigRedaction:
         """Secrets in command list must also be redacted."""
         from council.config import CouncilConfig, ToolConfig
 
-        config = CouncilConfig(tools={
-            "codex": ToolConfig(
-                command=["codex", "--token=abc123"],
-                extra_args=[],
-            ),
-        })
+        config = CouncilConfig(
+            tools={
+                "codex": ToolConfig(
+                    command=["codex", "--token=abc123"],
+                    extra_args=[],
+                ),
+            }
+        )
         run_dir = create_run_dir(basic_opts)
         ctx = GatheredContext(text="ctx", sources=[], total_size=3)
         start = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)

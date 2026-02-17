@@ -41,10 +41,7 @@ def init_state(
         "started_at": _now_iso(),
         "finished_at": None,
         "status": "running",
-        "rounds": {
-            name: {"status": RoundStatus.PENDING.value, "tools": {}}
-            for name in ROUND_NAMES
-        },
+        "rounds": {name: {"status": RoundStatus.PENDING.value, "tools": {}} for name in ROUND_NAMES},
     }
     _write(run_dir, state)
     return state
@@ -103,11 +100,7 @@ def get_resume_point(state: dict[str, Any]) -> str | None:
 
 def get_failed_rounds(state: dict[str, Any]) -> list[str]:
     """Return list of round names that have ``failed`` status."""
-    return [
-        name
-        for name in ROUND_NAMES
-        if state["rounds"].get(name, {}).get("status") == RoundStatus.FAILED.value
-    ]
+    return [name for name in ROUND_NAMES if state["rounds"].get(name, {}).get("status") == RoundStatus.FAILED.value]
 
 
 def _write(run_dir: Path, state: dict[str, Any]) -> None:

@@ -27,14 +27,46 @@ ALWAYS_EXCLUDE = [
 
 # Common binary extensions to skip.
 BINARY_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp",
-    ".mp3", ".mp4", ".wav", ".avi", ".mov",
-    ".zip", ".tar", ".gz", ".bz2", ".7z", ".rar",
-    ".exe", ".dll", ".so", ".dylib", ".o", ".a",
-    ".pyc", ".pyo", ".class", ".wasm",
-    ".pdf", ".doc", ".docx", ".xls", ".xlsx",
-    ".ttf", ".otf", ".woff", ".woff2", ".eot",
-    ".sqlite", ".db",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".ico",
+    ".webp",
+    ".mp3",
+    ".mp4",
+    ".wav",
+    ".avi",
+    ".mov",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".bz2",
+    ".7z",
+    ".rar",
+    ".exe",
+    ".dll",
+    ".so",
+    ".dylib",
+    ".o",
+    ".a",
+    ".pyc",
+    ".pyo",
+    ".class",
+    ".wasm",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ttf",
+    ".otf",
+    ".woff",
+    ".woff2",
+    ".eot",
+    ".sqlite",
+    ".db",
 }
 
 # Type alias for a context section: (label, content, priority, optional source ref).
@@ -229,11 +261,7 @@ def gather_context(opts: RunOptions, repo_root: Path | None) -> GatheredContext:
             sections.append(("## Repository File Tree\n```\n" + summary + "\n```", summary, 10, src))
 
     # --- Environment info ---
-    env_info = (
-        f"Python: {sys.version.split()[0]}\n"
-        f"OS: {platform.system()} {platform.release()}\n"
-        f"CWD: {Path.cwd()}"
-    )
+    env_info = f"Python: {sys.version.split()[0]}\nOS: {platform.system()} {platform.release()}\nCWD: {Path.cwd()}"
     src = ContextSource(
         source_type="env",
         original_size=len(env_info.encode()),
@@ -297,21 +325,25 @@ def _include_file(
                 file=sys.stderr,
             )
         else:
-            sources.append(ContextSource(
-                source_type="file",
-                path=name,
-                excluded=True,
-                reason="matched exclude pattern",
-            ))
+            sources.append(
+                ContextSource(
+                    source_type="file",
+                    path=name,
+                    excluded=True,
+                    reason="matched exclude pattern",
+                )
+            )
             return
 
     if _is_binary(path):
-        sources.append(ContextSource(
-            source_type="file",
-            path=name,
-            excluded=True,
-            reason="binary file",
-        ))
+        sources.append(
+            ContextSource(
+                source_type="file",
+                path=name,
+                excluded=True,
+                reason="binary file",
+            )
+        )
         return
 
     content, orig_size, truncated = _read_file_safe(path, opts.max_file_kb)
@@ -364,12 +396,14 @@ def _include_from_task_refs(
 
         # Exclude/binary checks.
         if _matches_exclude(name) or _matches_exclude(resolved.name):
-            sources.append(ContextSource(
-                source_type="file",
-                path=name,
-                excluded=True,
-                reason="matched exclude pattern (smart-context)",
-            ))
+            sources.append(
+                ContextSource(
+                    source_type="file",
+                    path=name,
+                    excluded=True,
+                    reason="matched exclude pattern (smart-context)",
+                )
+            )
             continue
 
         if _is_binary(resolved):
@@ -377,7 +411,12 @@ def _include_from_task_refs(
 
         if ref.line is not None:
             _include_file_scope(
-                resolved, ref.line, name, opts, sections, sources,
+                resolved,
+                ref.line,
+                name,
+                opts,
+                sections,
+                sources,
             )
         else:
             _include_file(resolved, opts, sections, sources, priority=55, explicit=False)
@@ -423,10 +462,7 @@ def _include_file_scope(
     )
     sources.append(src)
 
-    label = (
-        f"## File: {display_name} (lines {start_line}-{end_line}, "
-        f"around line {target_line})\n```\n{snippet}\n```"
-    )
+    label = f"## File: {display_name} (lines {start_line}-{end_line}, around line {target_line})\n```\n{snippet}\n```"
     sections.append((label, snippet, 70, src))
 
 
@@ -494,6 +530,7 @@ def _enforce_budget(
     Updates the linked ContextSource objects to reflect what was
     actually dropped or truncated.
     """
+
     def _total() -> int:
         return sum(len(label.encode()) for label, _, _, _ in sections)
 

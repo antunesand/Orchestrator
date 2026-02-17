@@ -74,6 +74,7 @@ def redact_abs_paths(text: str) -> str:
     Handles both Unix-style (``/home/user/...``) and Windows-style
     (``C:\\Users\\...``) absolute paths.
     """
+
     def _replace_unix(m: re.Match[str]) -> str:
         base = _basename(m.group(1))
         return f"<REDACTED>/{base}" if base else "<REDACTED>"

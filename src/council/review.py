@@ -46,11 +46,7 @@ class ReviewResult:
     @property
     def high_confidence(self) -> bool:
         """True when confidence >= 85 and there are no must-fix issues."""
-        return (
-            not self.must_fix
-            and self.confidence is not None
-            and self.confidence >= 85
-        )
+        return not self.must_fix and self.confidence is not None and self.confidence >= 85
 
     def to_dict(self) -> dict:
         """Serialize to a plain dict (JSON-safe)."""
@@ -155,22 +151,26 @@ def _try_parse_json(text: str) -> ReviewResult | None:
         # must_fix
         for item in data.get("must_fix", []):
             if isinstance(item, dict):
-                result.must_fix.append(ReviewItem(
-                    description=str(item.get("description", "")),
-                    file=item.get("file"),
-                    line=item.get("line"),
-                ))
+                result.must_fix.append(
+                    ReviewItem(
+                        description=str(item.get("description", "")),
+                        file=item.get("file"),
+                        line=item.get("line"),
+                    )
+                )
             elif isinstance(item, str):
                 result.must_fix.append(ReviewItem(description=item))
 
         # should_fix
         for item in data.get("should_fix", []):
             if isinstance(item, dict):
-                result.should_fix.append(ReviewItem(
-                    description=str(item.get("description", "")),
-                    file=item.get("file"),
-                    line=item.get("line"),
-                ))
+                result.should_fix.append(
+                    ReviewItem(
+                        description=str(item.get("description", "")),
+                        file=item.get("file"),
+                        line=item.get("line"),
+                    )
+                )
             elif isinstance(item, str):
                 result.should_fix.append(ReviewItem(description=item))
 
@@ -241,11 +241,13 @@ def _extract_section_items(text: str, header_re: re.Pattern[str]) -> list[Review
             # Try to extract file:line from the description.
             file_ref = re.search(r"`?([^\s`]+\.\w+):(\d+)`?", desc)
             if file_ref:
-                items.append(ReviewItem(
-                    description=desc,
-                    file=file_ref.group(1),
-                    line=int(file_ref.group(2)),
-                ))
+                items.append(
+                    ReviewItem(
+                        description=desc,
+                        file=file_ref.group(1),
+                        line=int(file_ref.group(2)),
+                    )
+                )
             else:
                 items.append(ReviewItem(description=desc))
 
@@ -263,6 +265,7 @@ def _extract_until_next_header(text: str, start: int) -> str:
 # ---------------------------------------------------------------------------
 # Summary formatting
 # ---------------------------------------------------------------------------
+
 
 def format_review_summary(review: ReviewResult) -> str:
     """Format a ReviewResult into a human-readable summary."""

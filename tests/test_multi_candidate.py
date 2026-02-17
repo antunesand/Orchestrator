@@ -17,6 +17,7 @@ from council.types import Mode, RoundStatus, RunOptions, ToolResult
 # _pick_best_candidate
 # ---------------------------------------------------------------------------
 
+
 class TestPickBestCandidate:
     def test_single_candidate(self):
         candidates = [("claude", "output text")]
@@ -80,6 +81,7 @@ class TestPickBestCandidate:
 # RunOptions multi-candidate fields
 # ---------------------------------------------------------------------------
 
+
 class TestRunOptionsMultiCandidate:
     def test_default_values(self):
         opts = RunOptions(mode=Mode.FIX, task="test")
@@ -96,6 +98,7 @@ class TestRunOptionsMultiCandidate:
 # CLI flags
 # ---------------------------------------------------------------------------
 
+
 class TestMultiCandidateCLI:
     def test_fix_accepts_claude_n(self):
         from typer.testing import CliRunner
@@ -104,12 +107,18 @@ class TestMultiCandidateCLI:
 
         runner = CliRunner()
         with patch("council.cli._run") as mock_run:
-            result = runner.invoke(app, [
-                "fix", "test task",
-                "--claude-n", "3",
-                "--codex-n", "2",
-                "--dry-run",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "fix",
+                    "test task",
+                    "--claude-n",
+                    "3",
+                    "--codex-n",
+                    "2",
+                    "--dry-run",
+                ],
+            )
         if result.exit_code == 0:
             opts = mock_run.call_args[0][0]
             assert opts.claude_n == 3
@@ -122,10 +131,15 @@ class TestMultiCandidateCLI:
 
         runner = CliRunner()
         with patch("council.cli._run") as mock_run:
-            result = runner.invoke(app, [
-                "feature", "new feature",
-                "--claude-n", "2",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "feature",
+                    "new feature",
+                    "--claude-n",
+                    "2",
+                ],
+            )
         if result.exit_code == 0:
             opts = mock_run.call_args[0][0]
             assert opts.claude_n == 2
@@ -138,10 +152,15 @@ class TestMultiCandidateCLI:
 
         runner = CliRunner()
         with patch("council.cli._run") as mock_run:
-            result = runner.invoke(app, [
-                "review", "review this",
-                "--codex-n", "3",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "review",
+                    "review this",
+                    "--codex-n",
+                    "3",
+                ],
+            )
         if result.exit_code == 0:
             opts = mock_run.call_args[0][0]
             assert opts.codex_n == 3
@@ -153,10 +172,14 @@ class TestMultiCandidateCLI:
 
         runner = CliRunner()
         with patch("council.cli._run") as mock_run:
-            result = runner.invoke(app, [
-                "fix", "test task",
-                "--structured-review",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "fix",
+                    "test task",
+                    "--structured-review",
+                ],
+            )
         if result.exit_code == 0:
             opts = mock_run.call_args[0][0]
             assert opts.structured_review is True
@@ -168,9 +191,13 @@ class TestMultiCandidateCLI:
 
         runner = CliRunner()
         with patch("council.cli._run") as mock_run:
-            result = runner.invoke(app, [
-                "review", "review this",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "review",
+                    "review this",
+                ],
+            )
         if result.exit_code == 0:
             opts = mock_run.call_args[0][0]
             assert opts.structured_review is True
@@ -182,10 +209,14 @@ class TestMultiCandidateCLI:
 
         runner = CliRunner()
         with patch("council.cli._run") as mock_run:
-            result = runner.invoke(app, [
-                "review", "review this",
-                "--no-structured-review",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "review",
+                    "review this",
+                    "--no-structured-review",
+                ],
+            )
         if result.exit_code == 0:
             opts = mock_run.call_args[0][0]
             assert opts.structured_review is False
@@ -194,6 +225,7 @@ class TestMultiCandidateCLI:
 # ---------------------------------------------------------------------------
 # Pipeline multi-candidate round 0 prompt generation
 # ---------------------------------------------------------------------------
+
 
 class TestMultiCandidatePrompts:
     def test_generates_extra_prompts(self):
@@ -205,7 +237,7 @@ class TestMultiCandidatePrompts:
         prompts: dict[str, str] = {}
         prompts["claude"] = round0_prompt(opts.mode, opts.task, "ctx")
         for i in range(1, opts.claude_n):
-            prompts[f"claude_{i+1}"] = round0_prompt(opts.mode, opts.task, "ctx")
+            prompts[f"claude_{i + 1}"] = round0_prompt(opts.mode, opts.task, "ctx")
 
         assert "claude" in prompts
         assert "claude_2" in prompts
@@ -219,7 +251,7 @@ class TestMultiCandidatePrompts:
         prompts: dict[str, str] = {}
         prompts["codex"] = round0_prompt(opts.mode, opts.task, "ctx")
         for i in range(1, opts.codex_n):
-            prompts[f"codex_{i+1}"] = round0_prompt(opts.mode, opts.task, "ctx")
+            prompts[f"codex_{i + 1}"] = round0_prompt(opts.mode, opts.task, "ctx")
 
         assert "codex" in prompts
         assert "codex_2" in prompts
@@ -231,10 +263,15 @@ class TestMultiCandidatePrompts:
 # Multi-candidate persistence in state.json
 # ---------------------------------------------------------------------------
 
+
 def _mock_tool_result(name: str, stdout: str = "mock output", exit_code: int = 0) -> ToolResult:
     return ToolResult(
-        tool_name=name, command=[name], exit_code=exit_code,
-        stdout=stdout, stderr="", duration_sec=1.0,
+        tool_name=name,
+        command=[name],
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr="",
+        duration_sec=1.0,
     )
 
 
@@ -243,8 +280,11 @@ class TestMultiCandidatePersistence:
     async def test_chosen_candidate_persisted_in_state(self, tmp_path: Path):
         """Running with claude_n=2 should persist chosen_candidates in state.json."""
         opts = RunOptions(
-            mode=Mode.FIX, task="Fix bug", outdir=tmp_path,
-            claude_n=2, codex_n=1,
+            mode=Mode.FIX,
+            task="Fix bug",
+            outdir=tmp_path,
+            claude_n=2,
+            codex_n=1,
         )
         config = CouncilConfig.defaults()
 
@@ -299,10 +339,18 @@ class TestMultiCandidatePersistence:
 
         # State: R0 OK with chosen_candidates, R1 OK, R2+R3 pending.
         state = init_state(run_dir, "fix", "Fix the login bug", ["claude", "codex"])
-        update_round(run_dir, state, "0_generate", RoundStatus.OK, {
-            "claude": "ok", "claude_2": "ok", "codex": "ok",
-            "chosen_candidates": {"claude": "claude_2", "codex": "codex"},
-        })
+        update_round(
+            run_dir,
+            state,
+            "0_generate",
+            RoundStatus.OK,
+            {
+                "claude": "ok",
+                "claude_2": "ok",
+                "codex": "ok",
+                "chosen_candidates": {"claude": "claude_2", "codex": "codex"},
+            },
+        )
         update_round(run_dir, state, "1_claude_improve", RoundStatus.OK, {"claude": "ok"})
 
         config = CouncilConfig.defaults()

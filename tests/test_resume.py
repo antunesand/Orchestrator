@@ -142,7 +142,9 @@ class TestRetryFailed:
             patch("council.pipeline.run_tool", side_effect=mock_run_tool),
         ):
             result = await resume_pipeline(
-                run_dir, config, retry_failed=True,
+                run_dir,
+                config,
+                retry_failed=True,
             )
 
         assert result == run_dir
@@ -179,7 +181,9 @@ class TestRetryFailed:
             patch("council.pipeline.run_tool", side_effect=mock_run_tool),
         ):
             await resume_pipeline(
-                run_dir, config, retry_failed=True,
+                run_dir,
+                config,
+                retry_failed=True,
             )
 
         # R0 and R1 should NOT have been called (they were OK).

@@ -147,10 +147,7 @@ class TestRedactAbsPaths:
         assert "<REDACTED>/tool.exe" in result
 
     def test_multiple_paths_in_text(self):
-        text = (
-            "Source: /home/user/project/src/app.py\n"
-            "Config: C:\\Users\\dev\\config\\settings.yml"
-        )
+        text = "Source: /home/user/project/src/app.py\nConfig: C:\\Users\\dev\\config\\settings.yml"
         result = redact_abs_paths(text)
         assert "/home/user" not in result
         assert "C:\\Users\\dev" not in result

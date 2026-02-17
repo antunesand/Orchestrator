@@ -114,6 +114,7 @@ def _pick_best_candidate(
 
     # Try to extract confidence scores.
     import re
+
     _conf_re = re.compile(r"(?:confidence)\s*[:=]?\s*(\d{1,3})", re.IGNORECASE)
     scored: list[tuple[str, str, int]] = []
     for name, text in candidates:
@@ -167,9 +168,7 @@ async def run_pipeline(opts: RunOptions, config: CouncilConfig) -> Path:
     _print_progress("Gathering context...")
     ctx = gather_context(opts, repo_root)
     _print_verbose(
-        f"Context: {ctx.total_size / 1024:.1f} KB, "
-        f"{len(ctx.sources)} sources, "
-        f"{len(ctx.changed_files)} changed files",
+        f"Context: {ctx.total_size / 1024:.1f} KB, {len(ctx.sources)} sources, {len(ctx.changed_files)} changed files",
         verbose,
     )
 
@@ -290,6 +289,7 @@ async def resume_pipeline(
 
     # Build a minimal RunOptions for the resumed run.
     from council.types import Mode
+
     mode = Mode(mode_str)
     opts = RunOptions(
         mode=mode,
@@ -409,15 +409,15 @@ async def _run_rounds(
     if has_claude:
         r0_prompts["claude"] = round0_prompt(opts.mode, opts.task, ctx.text)
         for i in range(1, claude_n):
-            r0_prompts[f"claude_{i+1}"] = round0_prompt(opts.mode, opts.task, ctx.text)
+            r0_prompts[f"claude_{i + 1}"] = round0_prompt(opts.mode, opts.task, ctx.text)
     if has_codex:
         r0_prompts["codex"] = round0_prompt(opts.mode, opts.task, ctx.text)
         for i in range(1, codex_n):
-            r0_prompts[f"codex_{i+1}"] = round0_prompt(opts.mode, opts.task, ctx.text)
+            r0_prompts[f"codex_{i + 1}"] = round0_prompt(opts.mode, opts.task, ctx.text)
 
     if opts.print_prompts:
         for name, prompt in r0_prompts.items():
-            print(f"\n{'='*60}\nRound 0 prompt for {name}:\n{'='*60}\n{prompt}\n", file=sys.stderr)
+            print(f"\n{'=' * 60}\nRound 0 prompt for {name}:\n{'=' * 60}\n{prompt}\n", file=sys.stderr)
 
     if opts.dry_run:
         _print_progress("DRY RUN: writing prompts and context, then exiting.")
@@ -445,9 +445,7 @@ async def _run_rounds(
             if base in config.tools:
                 r0_configs[n] = config.tools[base]
 
-        r0_results = await run_tools_parallel(
-            r0_configs, r0_prompts, timeout_sec=opts.timeout_sec, cwd=repo_root
-        )
+        r0_results = await run_tools_parallel(r0_configs, r0_prompts, timeout_sec=opts.timeout_sec, cwd=repo_root)
         if not no_save:
             save_round0(run_dir, r0_prompts, r0_results)
 
@@ -513,7 +511,9 @@ async def _run_rounds(
         codex_r0_out = _load_round_output(run_dir, "0_generate", codex_key)
 
     # Track codex availability.
-    codex_available = bool(codex_r0_out) and codex_r0_out != "(Codex was unavailable; no alternative analysis provided.)"
+    codex_available = (
+        bool(codex_r0_out) and codex_r0_out != "(Codex was unavailable; no alternative analysis provided.)"
+    )
 
     # If only one tool succeeded, handle single-tool fallback.
     if not claude_r0_out and codex_r0_out:
@@ -532,14 +532,17 @@ async def _run_rounds(
         _print_verbose(f"Prompt size: {len(r1_prompt) / 1024:.1f} KB", verbose)
 
         if opts.print_prompts:
-            print(f"\n{'='*60}\nRound 1 prompt:\n{'='*60}\n{r1_prompt}\n", file=sys.stderr)
+            print(f"\n{'=' * 60}\nRound 1 prompt:\n{'=' * 60}\n{r1_prompt}\n", file=sys.stderr)
 
         if not no_save:
             update_round(run_dir, state, "1_claude_improve", RoundStatus.RUNNING)
 
         r1_result = await run_tool(
-            "claude", config.tools["claude"], r1_prompt,
-            timeout_sec=opts.timeout_sec, cwd=repo_root,
+            "claude",
+            config.tools["claude"],
+            r1_prompt,
+            timeout_sec=opts.timeout_sec,
+            cwd=repo_root,
         )
         if not no_save:
             save_round(run_dir, "1_claude_improve", r1_prompt, r1_result)
@@ -570,14 +573,17 @@ async def _run_rounds(
             _print_verbose(f"Prompt size: {len(r2_prompt) / 1024:.1f} KB", verbose)
 
             if opts.print_prompts:
-                print(f"\n{'='*60}\nRound 2 prompt:\n{'='*60}\n{r2_prompt}\n", file=sys.stderr)
+                print(f"\n{'=' * 60}\nRound 2 prompt:\n{'=' * 60}\n{r2_prompt}\n", file=sys.stderr)
 
             if not no_save:
                 update_round(run_dir, state, "2_codex_critique", RoundStatus.RUNNING)
 
             r2_result = await run_tool(
-                "codex", config.tools["codex"], r2_prompt,
-                timeout_sec=opts.timeout_sec, cwd=repo_root,
+                "codex",
+                config.tools["codex"],
+                r2_prompt,
+                timeout_sec=opts.timeout_sec,
+                cwd=repo_root,
             )
             if not no_save:
                 save_round(run_dir, "2_codex_critique", r2_prompt, r2_result)
@@ -597,8 +603,10 @@ async def _run_rounds(
                     if not no_save:
                         save_review_checklist(review_result, run_dir / "final" / "review_checklist.md")
                         import json as _json
+
                         (run_dir / "final" / "review.json").write_text(
-                            _json.dumps(review_result.to_dict(), indent=2), encoding="utf-8",
+                            _json.dumps(review_result.to_dict(), indent=2),
+                            encoding="utf-8",
                         )
 
                     # Early stop: if high confidence and no must-fix, skip R3.
@@ -628,14 +636,17 @@ async def _run_rounds(
         _print_verbose(f"Prompt size: {len(r3_prompt) / 1024:.1f} KB", verbose)
 
         if opts.print_prompts:
-            print(f"\n{'='*60}\nRound 3 prompt:\n{'='*60}\n{r3_prompt}\n", file=sys.stderr)
+            print(f"\n{'=' * 60}\nRound 3 prompt:\n{'=' * 60}\n{r3_prompt}\n", file=sys.stderr)
 
         if not no_save:
             update_round(run_dir, state, "3_claude_finalize", RoundStatus.RUNNING)
 
         r3_result = await run_tool(
-            "claude", config.tools["claude"], r3_prompt,
-            timeout_sec=opts.timeout_sec, cwd=repo_root,
+            "claude",
+            config.tools["claude"],
+            r3_prompt,
+            timeout_sec=opts.timeout_sec,
+            cwd=repo_root,
         )
         if not no_save:
             save_round(run_dir, "3_claude_finalize", r3_prompt, r3_result)

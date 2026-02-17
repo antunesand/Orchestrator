@@ -99,11 +99,16 @@ class TestDryRunCLIExitCode:
         from council.cli import app
 
         runner = CliRunner()
-        result = runner.invoke(app, [
-            "fix", "test task",
-            "--dry-run",
-            "--outdir", str(tmp_path),
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "fix",
+                "test task",
+                "--dry-run",
+                "--outdir",
+                str(tmp_path),
+            ],
+        )
         assert result.exit_code == 0
 
 
@@ -137,10 +142,7 @@ class TestPipelineFullRun:
             else:
                 return _mock_tool_result(
                     "codex",
-                    stdout=(
-                        "### Summary\n- Implemented dark mode toggle\n\n"
-                        "### Confidence Score\n90\n"
-                    ),
+                    stdout=("### Summary\n- Implemented dark mode toggle\n\n### Confidence Score\n90\n"),
                 )
 
         async def mock_run_parallel(configs, prompts, timeout_sec=180, cwd=None):

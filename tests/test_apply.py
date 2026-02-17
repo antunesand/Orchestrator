@@ -20,6 +20,7 @@ from council.apply import (
 # load_patch
 # ---------------------------------------------------------------------------
 
+
 class TestLoadPatch:
     def test_loads_existing_patch(self, tmp_path: Path):
         final = tmp_path / "final"
@@ -47,12 +48,11 @@ class TestLoadPatch:
 # check_patch
 # ---------------------------------------------------------------------------
 
+
 class TestCheckPatch:
     def test_clean_patch(self, tmp_path: Path):
         """check_patch returns True when git apply --check succeeds."""
-        mock_result = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr="checking..."
-        )
+        mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="checking...")
         with patch("council.apply.subprocess.run", return_value=mock_result):
             ok, detail = check_patch("patch content", tmp_path)
         assert ok is True
@@ -83,20 +83,17 @@ class TestCheckPatch:
 # apply_patch
 # ---------------------------------------------------------------------------
 
+
 class TestApplyPatch:
     def test_successful_apply(self, tmp_path: Path):
-        mock_result = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr="applied ok"
-        )
+        mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="applied ok")
         with patch("council.apply.subprocess.run", return_value=mock_result):
             ok, detail = apply_patch("patch content", tmp_path)
         assert ok is True
         assert "applied" in detail
 
     def test_failed_apply(self, tmp_path: Path):
-        mock_result = subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr="conflict"
-        )
+        mock_result = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="conflict")
         with patch("council.apply.subprocess.run", return_value=mock_result):
             ok, detail = apply_patch("bad patch", tmp_path)
         assert ok is False
@@ -112,11 +109,10 @@ class TestApplyPatch:
 # create_branch
 # ---------------------------------------------------------------------------
 
+
 class TestCreateBranch:
     def test_success(self, tmp_path: Path):
-        mock_result = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr=""
-        )
+        mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
         with patch("council.apply._git", return_value=mock_result):
             ok, detail = create_branch("council/fix-auth", tmp_path)
         assert ok is True
@@ -136,19 +132,16 @@ class TestCreateBranch:
 # working_tree_clean
 # ---------------------------------------------------------------------------
 
+
 class TestWorkingTreeClean:
     def test_clean(self, tmp_path: Path):
-        mock_result = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr=""
-        )
+        mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
         with patch("council.apply._git", return_value=mock_result):
             clean, output = working_tree_clean(tmp_path)
         assert clean is True
 
     def test_dirty(self, tmp_path: Path):
-        mock_result = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout=" M src/app.py\n?? new.py\n", stderr=""
-        )
+        mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout=" M src/app.py\n?? new.py\n", stderr="")
         with patch("council.apply._git", return_value=mock_result):
             clean, output = working_tree_clean(tmp_path)
         assert clean is False
@@ -159,10 +152,12 @@ class TestWorkingTreeClean:
 # post_apply_diff
 # ---------------------------------------------------------------------------
 
+
 class TestPostApplyDiff:
     def test_returns_diff(self, tmp_path: Path):
         mock_result = subprocess.CompletedProcess(
-            args=[], returncode=0,
+            args=[],
+            returncode=0,
             stdout="diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-old\n+new",
             stderr="",
         )
@@ -180,6 +175,7 @@ class TestPostApplyDiff:
 # show_diff_preview
 # ---------------------------------------------------------------------------
 
+
 class TestShowDiffPreview:
     def test_does_not_raise(self, capsys):
         """show_diff_preview should print without raising."""
@@ -190,6 +186,7 @@ class TestShowDiffPreview:
 # ---------------------------------------------------------------------------
 # CLI integration (via typer)
 # ---------------------------------------------------------------------------
+
 
 class TestApplyCLI:
     """Test the CLI apply command via CliRunner."""
@@ -229,12 +226,12 @@ class TestApplyCLI:
         (run / "final").mkdir()
         (run / "final" / "final.patch").write_text("--- a/f\n+++ b/f\n")
 
-        mock_check = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr="ok"
-        )
+        mock_check = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="ok")
         runner = CliRunner()
-        with patch("council.cli.find_repo_root", return_value=tmp_path), \
-             patch("council.apply.subprocess.run", return_value=mock_check):
+        with (
+            patch("council.cli.find_repo_root", return_value=tmp_path),
+            patch("council.apply.subprocess.run", return_value=mock_check),
+        ):
             result = runner.invoke(app, ["apply", str(run), "--check"])
         assert result.exit_code == 0
         assert "OK" in result.output.upper() or "ok" in result.output.lower()
@@ -249,12 +246,12 @@ class TestApplyCLI:
         (run / "final").mkdir()
         (run / "final" / "final.patch").write_text("--- a/f\n+++ b/f\n")
 
-        mock_check = subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr="does not apply"
-        )
+        mock_check = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="does not apply")
         runner = CliRunner()
-        with patch("council.cli.find_repo_root", return_value=tmp_path), \
-             patch("council.apply.subprocess.run", return_value=mock_check):
+        with (
+            patch("council.cli.find_repo_root", return_value=tmp_path),
+            patch("council.apply.subprocess.run", return_value=mock_check),
+        ):
             result = runner.invoke(app, ["apply", str(run), "--check"])
         assert result.exit_code != 0
 
@@ -273,16 +270,19 @@ class TestApplyCLI:
             return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="ok")
 
         mock_git_result = subprocess.CompletedProcess(
-            args=[], returncode=0,
+            args=[],
+            returncode=0,
             stdout="diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py\n",
             stderr="",
         )
 
         runner = CliRunner()
-        with patch("council.cli.find_repo_root", return_value=tmp_path), \
-             patch("council.cli.working_tree_clean", return_value=(True, "")), \
-             patch("council.apply.subprocess.run", side_effect=mock_run), \
-             patch("council.apply._git", return_value=mock_git_result):
+        with (
+            patch("council.cli.find_repo_root", return_value=tmp_path),
+            patch("council.cli.working_tree_clean", return_value=(True, "")),
+            patch("council.apply.subprocess.run", side_effect=mock_run),
+            patch("council.apply._git", return_value=mock_git_result),
+        ):
             result = runner.invoke(app, ["apply", str(run), "--yes"])
         assert result.exit_code == 0
         assert "applied" in result.output.lower()
@@ -301,16 +301,19 @@ class TestApplyCLI:
             return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="ok")
 
         mock_diff = subprocess.CompletedProcess(
-            args=[], returncode=0,
+            args=[],
+            returncode=0,
             stdout="diff --git a/f.py b/f.py\n",
             stderr="",
         )
 
         runner = CliRunner()
-        with patch("council.cli.find_repo_root", return_value=tmp_path), \
-             patch("council.cli.working_tree_clean", return_value=(True, "")), \
-             patch("council.apply.subprocess.run", side_effect=mock_run), \
-             patch("council.apply._git", return_value=mock_diff):
+        with (
+            patch("council.cli.find_repo_root", return_value=tmp_path),
+            patch("council.cli.working_tree_clean", return_value=(True, "")),
+            patch("council.apply.subprocess.run", side_effect=mock_run),
+            patch("council.apply._git", return_value=mock_diff),
+        ):
             result = runner.invoke(app, ["apply", str(run), "--apply-to", "fix/auth", "--yes"])
         assert result.exit_code == 0
 
@@ -342,8 +345,10 @@ class TestApplyCLI:
         (run / "final" / "final.patch").write_text("--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-old\n+new\n")
 
         runner = CliRunner()
-        with patch("council.cli.find_repo_root", return_value=tmp_path), \
-             patch("council.cli.working_tree_clean", return_value=(False, " M src/app.py")):
+        with (
+            patch("council.cli.find_repo_root", return_value=tmp_path),
+            patch("council.cli.working_tree_clean", return_value=(False, " M src/app.py")),
+        ):
             result = runner.invoke(app, ["apply", str(run), "--yes"])
         assert result.exit_code != 0
         assert "uncommitted" in result.output.lower()
@@ -363,16 +368,19 @@ class TestApplyCLI:
             return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="ok")
 
         mock_diff = subprocess.CompletedProcess(
-            args=[], returncode=0,
+            args=[],
+            returncode=0,
             stdout="diff --git a/f.py b/f.py\n",
             stderr="",
         )
 
         runner = CliRunner()
-        with patch("council.cli.find_repo_root", return_value=tmp_path), \
-             patch("council.cli.working_tree_clean", return_value=(False, " M src/app.py")), \
-             patch("council.apply.subprocess.run", side_effect=mock_run), \
-             patch("council.apply._git", return_value=mock_diff):
+        with (
+            patch("council.cli.find_repo_root", return_value=tmp_path),
+            patch("council.cli.working_tree_clean", return_value=(False, " M src/app.py")),
+            patch("council.apply.subprocess.run", side_effect=mock_run),
+            patch("council.apply._git", return_value=mock_diff),
+        ):
             result = runner.invoke(app, ["apply", str(run), "--yes", "--force"])
         assert result.exit_code == 0
         assert "warning" in result.output.lower()
@@ -388,12 +396,12 @@ class TestApplyCLI:
         (run / "final").mkdir()
         (run / "final" / "final.patch").write_text("--- a/f\n+++ b/f\n")
 
-        mock_check = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr="ok"
-        )
+        mock_check = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="ok")
         runner = CliRunner()
-        with patch("council.cli.find_repo_root", return_value=tmp_path), \
-             patch("council.apply.subprocess.run", return_value=mock_check):
+        with (
+            patch("council.cli.find_repo_root", return_value=tmp_path),
+            patch("council.apply.subprocess.run", return_value=mock_check),
+        ):
             # Note: no working_tree_clean mock — if it were called it would error.
             result = runner.invoke(app, ["apply", str(run), "--check"])
         assert result.exit_code == 0

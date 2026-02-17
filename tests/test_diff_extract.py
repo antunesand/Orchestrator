@@ -5,7 +5,7 @@ from council.diff_extract import combine_diffs, extract_and_save, extract_diffs
 
 class TestExtractDiffs:
     def test_fenced_diff_block(self):
-        text = '''Here is the fix:
+        text = """Here is the fix:
 
 ```diff
 --- a/src/auth.py
@@ -16,14 +16,14 @@ class TestExtractDiffs:
 ```
 
 Done.
-'''
+"""
         diffs = extract_diffs(text)
         assert len(diffs) == 1
         assert "--- a/src/auth.py" in diffs[0]
         assert "+    return user" in diffs[0]
 
     def test_multiple_fenced_blocks(self):
-        text = '''Fix 1:
+        text = """Fix 1:
 
 ```diff
 --- a/foo.py
@@ -42,7 +42,7 @@ Fix 2:
 -broken
 +fixed
 ```
-'''
+"""
         diffs = extract_diffs(text)
         assert len(diffs) == 2
         assert "foo.py" in diffs[0]
@@ -83,13 +83,13 @@ class TestCombineDiffs:
 
 class TestExtractAndSave:
     def test_saves_to_file(self, tmp_path):
-        text = '''```diff
+        text = """```diff
 --- a/x.py
 +++ b/x.py
 @@ -1 +1 @@
 -old
 +new
-```'''
+```"""
         out = tmp_path / "test.patch"
         result = extract_and_save(text, str(out))
         assert result is not None

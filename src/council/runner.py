@@ -38,9 +38,7 @@ async def run_tool(
 
     if config.input_mode == InputMode.FILE:
         # Write prompt to a temporary file.
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".md", delete=False, encoding="utf-8"
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as tmp:
             tmp.write(prompt)
             tmp_path = Path(tmp.name)
         if config.prompt_file_arg:
@@ -71,9 +69,7 @@ async def run_tool(
         except TimeoutError:
             proc.kill()
             try:
-                stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                    proc.communicate(), timeout=5
-                )
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=5)
             except (TimeoutError, ProcessLookupError):
                 stdout_bytes = b""
                 stderr_bytes = b""
