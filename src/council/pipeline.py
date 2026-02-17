@@ -174,6 +174,8 @@ async def run_pipeline(opts: RunOptions, config: CouncilConfig) -> Path:
 
     # --- Create run directory ---
     run_dir = create_run_dir(opts)
+    # Machine-readable line for API/UI integration.
+    print(f"RUN_DIR={run_dir}", flush=True)
     no_save = opts.no_save
     if not no_save:
         save_task(run_dir, opts.task)

@@ -94,6 +94,8 @@ council fix --dry-run --print-prompts "Fix the broken test"
 | `council list` | List recent runs with status | — |
 | `council init` | Create `.council.yml` and update `.gitignore` | — |
 | `council doctor` | Check tool availability and configuration | — |
+| `council ui api` | Start the FastAPI backend (localhost) | — |
+| `council ui streamlit` | Launch the Streamlit Web UI | — |
 
 ### Options (for fix/feature/review)
 
@@ -330,6 +332,47 @@ If you explicitly `--include` a sensitive file, council prints a warning but inc
   2. Glob-included files
   3. Diff-included files
   4. Diffs (truncated, keeping up to 120 KB per diff when possible, but always respecting the total `--max-context-kb` budget)
+
+## Web UI (Streamlit + local API)
+
+Council includes an optional local Web UI built with Streamlit (frontend) and FastAPI (backend). The API runs council jobs via subprocess — identical behaviour to the CLI.
+
+### Install
+
+```bash
+pip install -e ".[web]"          # Streamlit + FastAPI + uvicorn
+# Or install separately:
+pip install -e ".[ui]"           # Streamlit only
+pip install -e ".[api]"          # FastAPI + uvicorn only
+```
+
+### Start
+
+```bash
+# 1. Start the API server (runs on 127.0.0.1:8717)
+council ui api
+
+# 2. In a second terminal, start the Streamlit UI
+council ui streamlit
+```
+
+The Streamlit UI will open in your browser at `http://127.0.0.1:8501` and communicate with the API at `http://127.0.0.1:8717`.
+
+### Options
+
+| Command | Flag | Default | Description |
+|---------|------|---------|-------------|
+| `council ui api` | `--host` | `127.0.0.1` | Bind address |
+| | `--port` | `8717` | Bind port |
+| `council ui streamlit` | `--host` | `127.0.0.1` | Bind address |
+| | `--port` | `8501` | Bind port |
+
+### Security
+
+- **Localhost only by default.** The API binds to `127.0.0.1` — it is not accessible from other machines.
+- **Do NOT expose to the internet.** The API can execute code-review tooling on local repositories.
+- If you pass `--host 0.0.0.0`, a warning is printed to stderr.
+- `.council.yml` is already excluded from git via `.gitignore` (set up by `council init`).
 
 ## Development
 
