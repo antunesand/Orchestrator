@@ -89,6 +89,9 @@ council fix --dry-run --print-prompts "Fix the broken test"
 | `council fix "..."` | Fix bugs and errors | `--diff all` |
 | `council feature "..."` | Implement new functionality | `--diff all` |
 | `council review "..."` | Review code changes | `--diff staged` |
+| `council resume <run_dir>` | Resume an interrupted or failed run | — |
+| `council apply <run_dir>` | Apply a patch from a previous run | — |
+| `council list` | List recent runs with status | — |
 | `council init` | Create `.council.yml` and update `.gitignore` | — |
 | `council doctor` | Check tool availability and configuration | — |
 
@@ -110,8 +113,64 @@ council fix --dry-run --print-prompts "Fix the broken test"
 | `--dry-run` | `false` | Write prompts/context only, don't invoke tools |
 | `--print-prompts` | `false` | Print prompts to terminal (still saves to files) |
 | `--verbose` | `false` | Verbose output (context stats, prompt sizes, command details) |
+| `--no-save` | `false` | Only save final output and a minimal manifest |
+| `--redact-paths` | `false` | Replace absolute paths with `<REDACTED>/basename` in saved artifacts |
+| `--smart-context` / `--no-smart-context` | varies | Auto-include files referenced in tracebacks/logs (`fix` enables by default) |
+| `--structured-review` / `--no-structured-review` | varies | Request JSON-structured critique in Round 2 (`review` enables by default) |
+| `--claude-n N` | `1` | Number of Claude candidates to generate in Round 0 (1-5) |
+| `--codex-n N` | `1` | Number of Codex candidates to generate in Round 0 (1-5) |
 | `--version` | — | Show version and exit |
 | `--config PATH` | — | Path to config file |
+
+### council resume
+
+Resume an interrupted or failed council run from its last checkpoint.
+
+```bash
+# Resume from where the run left off
+council resume runs/2025-06-15_143022_fix_broken_auth/
+
+# Only retry rounds that failed (preserve successful rounds)
+council resume --retry-failed runs/2025-06-15_143022_fix_broken_auth/
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--retry-failed` | `false` | Only re-run failed rounds; skip already-succeeded ones |
+| `--timeout-sec N` | `180` | Timeout per tool call |
+| `--verbose` | `false` | Verbose output |
+| `--config PATH` | — | Path to config file |
+
+### council apply
+
+Apply a patch from a previous council run to the current repository.
+
+```bash
+# Interactive: shows diff, asks for confirmation
+council apply runs/2025-06-15_143022_fix_broken_auth/
+
+# Skip confirmation prompt
+council apply runs/2025-06-15_143022_fix_broken_auth/ --yes
+
+# Dry-run: verify the patch applies cleanly without modifying files
+council apply runs/2025-06-15_143022_fix_broken_auth/ --check
+
+# Apply to a new branch (creates and checks out the branch)
+council apply runs/2025-06-15_143022_fix_broken_auth/ --apply-to fix/auth --yes
+
+# Force apply even with uncommitted changes
+council apply runs/2025-06-15_143022_fix_broken_auth/ --yes --force
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--apply-to BRANCH` | — | Create a new branch, apply the patch there |
+| `--check` | `false` | Dry-run: verify the patch applies cleanly without modifying files |
+| `--diff` | `false` | Show syntax-highlighted preview of the patch |
+| `--yes` / `-y` | `false` | Skip confirmation prompt |
+| `--force` | `false` | Apply even if the working tree has uncommitted changes |
+
+By default, `council apply` refuses to apply patches when the working tree has uncommitted changes. Use `--force` to override this safety check, or commit/stash your changes first.
 
 ## Configuration
 
@@ -206,6 +265,7 @@ Each invocation creates a timestamped folder:
 ```
 runs/2025-06-15_143022_fix_broken_auth/
   manifest.json          # Full metadata: timing, commands, exit codes, context stats
+  state.json             # Checkpoint state for resumable runs (round statuses)
   task.md                # The task description
   context.md             # All gathered context
   context_sources.json   # What was gathered, sizes, truncation decisions
@@ -217,6 +277,8 @@ runs/2025-06-15_143022_fix_broken_auth/
       claude_stderr.txt
       codex_stdout.md    # Codex's response
       codex_stderr.txt
+      # When using --claude-n or --codex-n, additional candidate files:
+      # claude_2_stdout.md, claude_2_stderr.txt, etc.
     1_claude_improve/
       prompt.md          # Prompt for improvement round
       stdout.md
@@ -233,9 +295,13 @@ runs/2025-06-15_143022_fix_broken_auth/
     final.md             # The final result
     final.patch          # Extracted unified diff (if any)
     summary.md           # Short summary
+    review_checklist.md  # Structured review checklist (when --structured-review)
+    review.json          # Machine-readable review output (when --structured-review)
 ```
 
 Commands in `manifest.json` are automatically redacted: flags containing KEY, TOKEN, SECRET, PASSWORD, or CREDENTIAL (and short flags `-k`, `-t`) have their values replaced with `***REDACTED***`. Tool config `command` and `extra_args` are also redacted in the manifest.
+
+When `--no-save` is active, only the final output (`final/`), a minimal manifest, and `state.json` are retained; intermediate round artifacts are cleaned up.
 
 ## Context Gathering
 
@@ -315,4 +381,46 @@ council fix --dry-run --print-prompts "Fix the flaky test in test_auth.py"
 
 ```bash
 council fix --tools claude "Fix the bug"
+```
+
+### Multi-candidate generation
+
+Generate multiple candidates per tool and let council pick the best one:
+
+```bash
+council fix --claude-n 3 --codex-n 2 "Fix the flaky auth test"
+```
+
+### Smart context (auto-include referenced files)
+
+When fixing bugs, council automatically parses tracebacks and file references in the task description to include relevant source files:
+
+```bash
+# --smart-context is enabled by default for `fix`
+council fix "TypeError in src/auth.py:42 — 'NoneType' has no attribute 'email'"
+```
+
+### Structured review output
+
+Get a machine-readable JSON critique with confidence score and categorized findings:
+
+```bash
+council review --structured-review --diff staged "Review for security issues"
+# Produces review.json and review_checklist.md in the run directory
+```
+
+### Resume an interrupted run
+
+```bash
+# Resume from where it left off
+council resume runs/2025-06-15_143022_fix_broken_auth/
+
+# Only retry failed rounds
+council resume --retry-failed runs/2025-06-15_143022_fix_broken_auth/
+```
+
+### Apply a patch from a run
+
+```bash
+council apply runs/2025-06-15_143022_fix_broken_auth/ --yes
 ```

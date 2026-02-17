@@ -71,6 +71,7 @@ class TestLoadState:
 
     def test_raises_if_missing(self, tmp_path: Path):
         import pytest
+
         with pytest.raises(FileNotFoundError):
             load_state(tmp_path)
 

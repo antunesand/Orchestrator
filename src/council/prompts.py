@@ -65,21 +65,15 @@ How to revert these changes safely if something goes wrong.
 
 def round0_prompt(mode: Mode, task: str, context: str) -> str:
     """Build the Round 0 prompt for initial generation."""
-    return (
-        f"{_PREAMBLE}\n\n"
-        f"{_MODE_FRAME[mode]}\n\n"
-        f"## Task\n{task}\n\n"
-        f"## Context\n{context}\n\n"
-        f"{_ROUND0_SUFFIX}"
-    )
+    return f"{_PREAMBLE}\n\n{_MODE_FRAME[mode]}\n\n## Task\n{task}\n\n## Context\n{context}\n\n{_ROUND0_SUFFIX}"
 
 
 # ---------------------------------------------------------------------------
 # Round 1: Claude improves (given Codex output + own output).
 # ---------------------------------------------------------------------------
 
-def round1_prompt(mode: Mode, task: str, context: str,
-                  codex_output: str, claude_output: str) -> str:
+
+def round1_prompt(mode: Mode, task: str, context: str, codex_output: str, claude_output: str) -> str:
     """Build Round 1 prompt: Claude evaluates Codex and improves."""
     return (
         f"{_PREAMBLE}\n\n"
@@ -104,8 +98,8 @@ def round1_prompt(mode: Mode, task: str, context: str,
 # Round 2: Codex critiques Claude's improved output.
 # ---------------------------------------------------------------------------
 
-def round2_prompt(mode: Mode, task: str, context: str,
-                  claude_improved: str, *, structured: bool = False) -> str:
+
+def round2_prompt(mode: Mode, task: str, context: str, claude_improved: str, *, structured: bool = False) -> str:
     """Build Round 2 prompt: Codex provides adversarial critique.
 
     When *structured* is True, appends instructions for JSON output so
@@ -141,8 +135,8 @@ def round2_prompt(mode: Mode, task: str, context: str,
 # Round 3: Claude finalizes (given improved output + Codex critique).
 # ---------------------------------------------------------------------------
 
-def round3_prompt(mode: Mode, task: str, context: str,
-                  claude_improved: str, codex_critique: str) -> str:
+
+def round3_prompt(mode: Mode, task: str, context: str, claude_improved: str, codex_critique: str) -> str:
     """Build Round 3 prompt: Claude finalizes the best result."""
     return (
         f"{_PREAMBLE}\n\n"

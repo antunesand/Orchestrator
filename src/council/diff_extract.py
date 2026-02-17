@@ -68,6 +68,7 @@ def extract_and_save(text: str, output_path: str | None = None) -> str | None:
 
     if output_path:
         from pathlib import Path
+
         Path(output_path).write_text(combined, encoding="utf-8")
 
     return combined

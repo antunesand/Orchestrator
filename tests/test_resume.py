@@ -142,7 +142,9 @@ class TestRetryFailed:
             patch("council.pipeline.run_tool", side_effect=mock_run_tool),
         ):
             result = await resume_pipeline(
-                run_dir, config, retry_failed=True,
+                run_dir,
+                config,
+                retry_failed=True,
             )
 
         assert result == run_dir
@@ -178,8 +180,10 @@ class TestRetryFailed:
             patch("council.pipeline.run_tools_parallel", side_effect=mock_run_parallel),
             patch("council.pipeline.run_tool", side_effect=mock_run_tool),
         ):
-            result = await resume_pipeline(
-                run_dir, config, retry_failed=True,
+            await resume_pipeline(
+                run_dir,
+                config,
+                retry_failed=True,
             )
 
         # R0 and R1 should NOT have been called (they were OK).
@@ -231,6 +235,7 @@ class TestResumeCLI:
 
     def test_resume_missing_dir(self):
         from typer.testing import CliRunner
+
         from council.cli import app
 
         runner = CliRunner()
@@ -240,6 +245,7 @@ class TestResumeCLI:
 
     def test_resume_missing_state_json(self, tmp_path: Path):
         from typer.testing import CliRunner
+
         from council.cli import app
 
         # Create a directory with no state.json.

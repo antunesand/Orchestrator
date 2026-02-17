@@ -180,6 +180,7 @@ class TestBinaryDetection:
 class TestCollectChangedFiles:
     def test_unions_staged_unstaged_untracked(self):
         """Verify changed files are a union of all three sources."""
+
         def mock_run_git(args, cwd=None):
             cmd = " ".join(args)
             if "diff --name-only --staged" in cmd:
@@ -199,6 +200,7 @@ class TestCollectChangedFiles:
 
     def test_handles_no_commits(self):
         """All git diff commands fail (no HEAD), but status works."""
+
         def mock_run_git(args, cwd=None):
             cmd = " ".join(args)
             if "diff" in cmd:
@@ -215,6 +217,7 @@ class TestCollectChangedFiles:
 
     def test_deduplicates(self):
         """Same file in multiple sources should appear once."""
+
         def mock_run_git(args, cwd=None):
             cmd = " ".join(args)
             if "diff --name-only --staged" in cmd:

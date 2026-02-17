@@ -48,8 +48,7 @@ class CouncilConfig(BaseModel):
                     input_mode=InputMode.STDIN,
                     extra_args=[
                         "-p",
-                        "Use the piped input as the full task instructions."
-                        " Produce the best possible answer.",
+                        "Use the piped input as the full task instructions. Produce the best possible answer.",
                     ],
                 ),
                 "codex": ToolConfig(
@@ -57,10 +56,13 @@ class CouncilConfig(BaseModel):
                     command=["codex", "exec"],
                     input_mode=InputMode.STDIN,
                     extra_args=[
-                        "--ask-for-approval", "never",
-                        "--sandbox", "read-only",
+                        "--ask-for-approval",
+                        "never",
+                        "--sandbox",
+                        "read-only",
                         # Disable ANSI color codes so saved artifacts are clean.
-                        "--color", "never",
+                        "--color",
+                        "never",
                         "-",
                     ],
                 ),
@@ -94,15 +96,13 @@ def _load_yaml(path: Path) -> dict[str, Any]:
             data = yaml.safe_load(f)
     except yaml.YAMLError as exc:
         print(
-            f"Warning: failed to parse config '{path}': {exc}\n"
-            f"  Falling back to default configuration.",
+            f"Warning: failed to parse config '{path}': {exc}\n  Falling back to default configuration.",
             file=sys.stderr,
         )
         return {}
     except OSError as exc:
         print(
-            f"Warning: could not read config '{path}': {exc}\n"
-            f"  Falling back to default configuration.",
+            f"Warning: could not read config '{path}': {exc}\n  Falling back to default configuration.",
             file=sys.stderr,
         )
         return {}
@@ -164,8 +164,7 @@ def _parse_config(raw: dict[str, Any]) -> CouncilConfig:
                     tools[name] = ToolConfig(**tool_data)
             except (ValidationError, TypeError) as exc:
                 print(
-                    f"Warning: invalid config for tool '{name}': {exc}\n"
-                    f"  Using defaults for this tool.",
+                    f"Warning: invalid config for tool '{name}': {exc}\n  Using defaults for this tool.",
                     file=sys.stderr,
                 )
 

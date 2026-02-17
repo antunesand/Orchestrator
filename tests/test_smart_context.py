@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from council.smart_context import (
     FileRef,
     extract_file_refs,
@@ -14,19 +12,19 @@ from council.smart_context import (
     resolve_ref,
 )
 
-
 # ---------------------------------------------------------------------------
 # extract_file_refs — traceback / log parsing
 # ---------------------------------------------------------------------------
 
+
 class TestExtractFileRefsPython:
     def test_python_traceback(self):
-        text = '''Traceback (most recent call last):
+        text = """Traceback (most recent call last):
   File "src/auth/login.py", line 42, in authenticate
     token = generate_token(user)
   File "src/auth/tokens.py", line 15, in generate_token
     return jwt.encode(payload, SECRET)
-jwt.exceptions.InvalidKeyError: key is empty'''
+jwt.exceptions.InvalidKeyError: key is empty"""
         refs = extract_file_refs(text)
         paths = [(r.path, r.line) for r in refs]
         assert ("src/auth/login.py", 42) in paths
@@ -46,9 +44,9 @@ jwt.exceptions.InvalidKeyError: key is empty'''
 
 class TestExtractFileRefsNode:
     def test_node_stack(self):
-        text = '''TypeError: Cannot read property 'id' of undefined
+        text = """TypeError: Cannot read property 'id' of undefined
     at Object.<anonymous> (/home/user/app/server.js:42:5)
-    at Module._compile (internal/modules/cjs/loader.js:999:30)'''
+    at Module._compile (internal/modules/cjs/loader.js:999:30)"""
         refs = extract_file_refs(text)
         paths = [r.path for r in refs]
         assert any("server.js" in p for p in paths)
@@ -61,14 +59,14 @@ class TestExtractFileRefsNode:
 
 class TestExtractFileRefsGo:
     def test_go_panic(self):
-        text = '''goroutine 1 [running]:
+        text = """goroutine 1 [running]:
 main.main()
 	/home/user/project/main.go:42 +0x1a2
 runtime.main()
-	/usr/local/go/src/runtime/proc.go:250 +0x1c0'''
+	/usr/local/go/src/runtime/proc.go:250 +0x1c0"""
         refs = extract_file_refs(text)
         paths = [(r.path, r.line) for r in refs]
-        assert any("main.go" in p and l == 42 for p, l in paths)
+        assert any("main.go" in p and ln == 42 for p, ln in paths)
 
 
 class TestExtractFileRefsRust:
@@ -80,9 +78,9 @@ class TestExtractFileRefsRust:
 
 class TestExtractFileRefsJava:
     def test_java_stack(self):
-        text = '''Exception in thread "main"
+        text = """Exception in thread "main"
     at com.example.App.main(App.java:10)
-    at com.example.Service.run(Service.java:45)'''
+    at com.example.Service.run(Service.java:45)"""
         refs = extract_file_refs(text)
         paths = [(r.path, r.line) for r in refs]
         assert ("App.java", 10) in paths
@@ -108,8 +106,8 @@ class TestExtractFileRefsGeneric:
         assert any(r.path == "src/main.ts" and r.line == 10 for r in refs)
 
     def test_deduplication(self):
-        text = '''  File "app.py", line 10, in main
-  File "app.py", line 10, in main'''
+        text = """  File "app.py", line 10, in main
+  File "app.py", line 10, in main"""
         refs = extract_file_refs(text)
         assert len([r for r in refs if r.path == "app.py" and r.line == 10]) == 1
 
@@ -119,9 +117,9 @@ class TestExtractFileRefsGeneric:
         assert refs == []
 
     def test_mixed_languages(self):
-        text = '''Error at src/foo.py:10
+        text = """Error at src/foo.py:10
 Also see src/bar.go:20
-And check src/baz.ts:30:5'''
+And check src/baz.ts:30:5"""
         refs = extract_file_refs(text)
         assert len(refs) >= 3
 
@@ -129,6 +127,7 @@ And check src/baz.ts:30:5'''
 # ---------------------------------------------------------------------------
 # resolve_ref
 # ---------------------------------------------------------------------------
+
 
 class TestResolveRef:
     def test_resolves_absolute_path(self, tmp_path: Path):
@@ -154,9 +153,10 @@ class TestResolveRef:
 # extract_scope — enclosing function/class extraction
 # ---------------------------------------------------------------------------
 
+
 class TestExtractScopePython:
     def test_extracts_enclosing_function(self):
-        source = '''\
+        source = """\
 import os
 
 def helper():
@@ -170,7 +170,7 @@ def authenticate(user):
 
 def other():
     pass
-'''
+"""
         # Line 7 is inside authenticate()
         snippet, start, end = extract_scope(source, 7)
         assert "def authenticate" in snippet
@@ -179,7 +179,7 @@ def other():
         assert "def other" not in snippet
 
     def test_extracts_class_method(self):
-        source = '''\
+        source = """\
 class UserService:
     def __init__(self, db):
         self.db = db
@@ -192,14 +192,14 @@ class UserService:
 
     def delete_user(self, user_id):
         self.db.delete(user_id)
-'''
+"""
         # Line 7 is inside get_user()
         snippet, start, end = extract_scope(source, 7)
         assert "def get_user" in snippet
         assert "result" in snippet
 
     def test_includes_decorator(self):
-        source = '''\
+        source = """\
 from functools import wraps
 
 @wraps
@@ -209,7 +209,7 @@ def protected_view(request):
 
 def public_view(request):
     return render(request, "public.html")
-'''
+"""
         # Line 6 is inside protected_view()
         snippet, start, end = extract_scope(source, 6)
         assert "@login_required" in snippet
@@ -224,7 +224,7 @@ def public_view(request):
 
 class TestExtractScopeJS:
     def test_js_function(self):
-        source = '''\
+        source = """\
 const helper = () => {};
 
 function processOrder(order) {
@@ -238,7 +238,7 @@ function processOrder(order) {
 function otherFunc() {
     return null;
 }
-'''
+"""
         # Line 5 is inside processOrder()
         snippet, start, end = extract_scope(source, 5)
         assert "function processOrder" in snippet
@@ -247,7 +247,7 @@ function otherFunc() {
 
 class TestExtractScopeGo:
     def test_go_func(self):
-        source = '''\
+        source = """\
 package main
 
 import "fmt"
@@ -263,7 +263,7 @@ func main() {
 func compute(x int) int {
 	return x * 2
 }
-'''
+"""
         # Line 9 is inside main()
         snippet, start, end = extract_scope(source, 9)
         assert "func main()" in snippet
@@ -272,7 +272,7 @@ func compute(x int) int {
 
 class TestExtractScopeRust:
     def test_rust_fn(self):
-        source = '''\
+        source = """\
 use std::io;
 
 fn helper() {}
@@ -286,7 +286,7 @@ pub fn process(input: &str) -> Result<String, io::Error> {
 }
 
 fn other() {}
-'''
+"""
         # Line 7 is inside process()
         snippet, start, end = extract_scope(source, 7)
         assert "pub fn process" in snippet
@@ -313,6 +313,7 @@ class TestExtractScopeEdgeCases:
 # Integration: smart context in gather_context
 # ---------------------------------------------------------------------------
 
+
 class TestSmartContextIntegration:
     def test_auto_includes_from_traceback(self, tmp_path: Path):
         """Smart context should auto-include files referenced in task traceback."""
@@ -321,12 +322,7 @@ class TestSmartContextIntegration:
         src_dir.mkdir()
         auth_file = src_dir / "auth.py"
         auth_file.write_text(
-            "def login(user):\n"
-            "    token = get_token(user)\n"
-            "    return token\n"
-            "\n"
-            "def logout(user):\n"
-            "    pass\n",
+            "def login(user):\n    token = get_token(user)\n    return token\n\ndef logout(user):\n    pass\n",
             encoding="utf-8",
         )
 
@@ -334,11 +330,11 @@ class TestSmartContextIntegration:
         from council.types import ContextMode, Mode, RunOptions
 
         task = (
-            'Fix this error:\n'
-            'Traceback (most recent call last):\n'
-            f'  File "src/auth.py", line 2, in login\n'
-            '    token = get_token(user)\n'
-            'NameError: name \'get_token\' is not defined'
+            "Fix this error:\n"
+            "Traceback (most recent call last):\n"
+            '  File "src/auth.py", line 2, in login\n'
+            "    token = get_token(user)\n"
+            "NameError: name 'get_token' is not defined"
         )
 
         opts = RunOptions(
@@ -348,10 +344,12 @@ class TestSmartContextIntegration:
             smart_context=True,
         )
 
-        with patch("council.context._run_git", return_value=None):
-            with patch("council.smart_context.resolve_ref") as mock_resolve:
-                mock_resolve.return_value = auth_file
-                ctx = gather_context(opts, repo_root=tmp_path)
+        with (
+            patch("council.context._run_git", return_value=None),
+            patch("council.smart_context.resolve_ref") as mock_resolve,
+        ):
+            mock_resolve.return_value = auth_file
+            ctx = gather_context(opts, repo_root=tmp_path)
 
         # The auth.py file should be included in context.
         file_sources = [s for s in ctx.sources if s.source_type == "file" and s.path]
@@ -391,7 +389,7 @@ class TestSmartContextIntegration:
         from council.context import gather_context
         from council.types import ContextMode, Mode, RunOptions
 
-        task = f'Error in app.py:1'
+        task = "Error in app.py:1"
 
         opts = RunOptions(
             mode=Mode.FIX,
@@ -425,9 +423,11 @@ class TestSmartContextIntegration:
             smart_context=True,
         )
 
-        with patch("council.context._run_git", return_value=None):
-            with patch("council.smart_context.resolve_ref", return_value=env_file):
-                ctx = gather_context(opts, repo_root=tmp_path)
+        with (
+            patch("council.context._run_git", return_value=None),
+            patch("council.smart_context.resolve_ref", return_value=env_file),
+        ):
+            ctx = gather_context(opts, repo_root=tmp_path)
 
         # .env should be excluded.
         excluded = [s for s in ctx.sources if s.excluded and s.path and ".env" in s.path]

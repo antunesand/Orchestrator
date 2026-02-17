@@ -36,43 +36,35 @@ _PY_TB = re.compile(
 # Node.js / V8 stack:  'at Object.<anonymous> (/home/user/app.js:12:5)'
 #                   or  'at /home/user/app.js:12:5'
 _NODE_STACK = re.compile(
-    r"at\s+(?:[^\(]*\()?"          # optional "at FuncName ("
+    r"at\s+(?:[^\(]*\()?"  # optional "at FuncName ("
     r"([^\s\):]+\.(?:js|ts|mjs|cjs|jsx|tsx))"
-    r":(\d+)(?::(\d+))?"           # :line[:col]
+    r":(\d+)(?::(\d+))?"  # :line[:col]
     r"\)?"
 )
 
 # Go panic / runtime:  'goroutine 1 [running]:' then 'main.go:42 +0x1a2'
 #                 or    '/home/user/project/main.go:42'
-_GO_PANIC = re.compile(
-    r"([^\s:]+\.go):(\d+)"
-)
+_GO_PANIC = re.compile(r"([^\s:]+\.go):(\d+)")
 
 # Rust panic:  'thread 'main' panicked at src/main.rs:15:5'
-_RUST_PANIC = re.compile(
-    r"panicked at (?:'[^']*', )?([^\s:]+\.rs):(\d+)(?::(\d+))?"
-)
+_RUST_PANIC = re.compile(r"panicked at (?:'[^']*', )?([^\s:]+\.rs):(\d+)(?::(\d+))?")
 
 # Java/Kotlin stack: 'at com.example.App.main(App.java:10)'
-_JAVA_STACK = re.compile(
-    r"at\s+[^\(]+\(([^\s\):]+\.(?:java|kt|scala)):(\d+)\)"
-)
+_JAVA_STACK = re.compile(r"at\s+[^\(]+\(([^\s\):]+\.(?:java|kt|scala)):(\d+)\)")
 
 # Ruby: 'from /home/user/app.rb:12:in `method''
-_RUBY_STACK = re.compile(
-    r"from\s+([^\s:]+\.rb):(\d+)"
-)
+_RUBY_STACK = re.compile(r"from\s+([^\s:]+\.rb):(\d+)")
 
 # Generic "path:line" or "path:line:col" — catches most remaining formats.
 # Matches paths that contain at least one '/' or '\' and end with a known
 # source extension.
 _GENERIC_FILE_LINE = re.compile(
     r"(?:^|[\s\"'(,])("
-    r"[^\s:\"'(,]+"                # path (at least one char)
+    r"[^\s:\"'(,]+"  # path (at least one char)
     r"\.(?:py|js|ts|jsx|tsx|go|rs|rb|java|kt|scala|c|cpp|cc|h|hpp|cs|php|swift|sh|yml|yaml|toml|json|sql|vue|svelte)"
     r")"
-    r":(\d+)"                      # :line
-    r"(?::(\d+))?"                 # optional :col
+    r":(\d+)"  # :line
+    r"(?::(\d+))?"  # optional :col
 )
 
 
@@ -179,17 +171,17 @@ def _find_scope_start(lines: list[str], target_idx: int) -> int:
     scope_re = re.compile(
         r"^(\s*)"
         r"(?:"
-        r"(?:async\s+)?def\s+\w+"                    # Python def / async def
-        r"|class\s+\w+"                                # Python / JS / Java class
-        r"|(?:async\s+)?function\s*\w*\s*\("          # JS function
+        r"(?:async\s+)?def\s+\w+"  # Python def / async def
+        r"|class\s+\w+"  # Python / JS / Java class
+        r"|(?:async\s+)?function\s*\w*\s*\("  # JS function
         r"|(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function|class)\b"  # JS export
         r"|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?(?:\([^)]*\)|[^=])\s*=>"  # JS arrow
-        r"|func\s+(?:\([^)]*\)\s*)?\w+"               # Go func
-        r"|(?:pub\s+)?(?:async\s+)?fn\s+\w+"          # Rust fn
-        r"|impl\b"                                     # Rust impl
+        r"|func\s+(?:\([^)]*\)\s*)?\w+"  # Go func
+        r"|(?:pub\s+)?(?:async\s+)?fn\s+\w+"  # Rust fn
+        r"|impl\b"  # Rust impl
         r"|(?:pub(?:lic)?|priv(?:ate)?|prot(?:ected)?|static|override|abstract|final|open|suspend|inline)?\s*"
         r"(?:fun|func|def|void|int|string|bool|var|val)\s+\w+"  # Kotlin / Java / Swift
-        r"|@\w+"                                       # Decorator (include it)
+        r"|@\w+"  # Decorator (include it)
         r")"
     )
 
@@ -239,24 +231,20 @@ def _find_scope_end(lines: list[str], scope_start: int, target_idx: int) -> int:
     # Indentation-based: body lines have indent > start_indent.
     body_started = False
     last_nonempty = target_idx
-    end = target_idx
 
     for i in range(scope_start + 1, len(lines)):
         stripped = lines[i].rstrip()
         if not stripped:
-            end = i
             continue
         indent = _indent_level(lines[i])
         if indent > start_indent:
             body_started = True
-            end = i
             last_nonempty = i
         elif body_started:
             # Back to same/lower indent — scope ended.
             break
         else:
             # Still on the signature line (e.g. multi-line function args).
-            end = i
             last_nonempty = i
 
     # Don't include trailing blank lines as part of the scope itself —

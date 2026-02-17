@@ -128,8 +128,7 @@ def _run(opts: RunOptions) -> None:
     for t in opts.tools:
         if t not in cfg.tools:
             typer.echo(
-                f"Warning: tool '{t}' not found in config. "
-                f"Available: {', '.join(cfg.tools.keys())}",
+                f"Warning: tool '{t}' not found in config. Available: {', '.join(cfg.tools.keys())}",
                 err=True,
             )
 
@@ -147,8 +146,12 @@ def fix(
     context: Annotated[ContextMode, typer.Option("--context", help="Context gathering mode")] = ContextMode.AUTO,
     diff: Annotated[DiffScope, typer.Option("--diff", help="Which diffs to include")] = DiffScope.ALL,
     include: Annotated[list[str] | None, typer.Option("--include", help="Include file content")] = None,
-    include_glob: Annotated[list[str] | None, typer.Option("--include-glob", help="Include files matching glob")] = None,
-    include_from_diff: Annotated[bool, typer.Option("--include-from-diff", help="Include changed file contents")] = False,
+    include_glob: Annotated[
+        list[str] | None, typer.Option("--include-glob", help="Include files matching glob")
+    ] = None,
+    include_from_diff: Annotated[
+        bool, typer.Option("--include-from-diff", help="Include changed file contents")
+    ] = False,
     max_context_kb: Annotated[int, typer.Option("--max-context-kb", help="Max total context size in KB")] = 300,
     max_file_kb: Annotated[int, typer.Option("--max-file-kb", help="Max single file size in KB")] = 60,
     timeout_sec: Annotated[int, typer.Option("--timeout-sec", help="Timeout per tool call in seconds")] = 180,
@@ -158,23 +161,49 @@ def fix(
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
     no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
-    redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
-    smart_context: Annotated[bool, typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs")] = True,
-    structured_review: Annotated[bool, typer.Option("--structured-review/--no-structured-review", help="Request JSON-structured critique output")] = False,
-    claude_n: Annotated[int, typer.Option("--claude-n", help="Number of Claude candidates to generate in Round 0", min=1, max=5)] = 1,
-    codex_n: Annotated[int, typer.Option("--codex-n", help="Number of Codex candidates to generate in Round 0", min=1, max=5)] = 1,
+    redact_paths: Annotated[
+        bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")
+    ] = False,
+    smart_context: Annotated[
+        bool,
+        typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs"),
+    ] = True,
+    structured_review: Annotated[
+        bool, typer.Option("--structured-review/--no-structured-review", help="Request JSON-structured critique output")
+    ] = False,
+    claude_n: Annotated[
+        int, typer.Option("--claude-n", help="Number of Claude candidates to generate in Round 0", min=1, max=5)
+    ] = 1,
+    codex_n: Annotated[
+        int, typer.Option("--codex-n", help="Number of Codex candidates to generate in Round 0", min=1, max=5)
+    ] = 1,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Fix a bug or error using the multi-LLM council."""
     opts = _common_options(
-        task=task, mode=Mode.FIX, task_file=task_file, context=context,
-        diff=diff, include=include, include_glob=include_glob,
-        include_from_diff=include_from_diff, max_context_kb=max_context_kb,
-        max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
-        tools=tools, dry_run=dry_run, print_prompts=print_prompts,
-        verbose=verbose, no_save=no_save, redact_paths=redact_paths,
-        smart_context=smart_context, structured_review=structured_review,
-        claude_n=claude_n, codex_n=codex_n, config=config,
+        task=task,
+        mode=Mode.FIX,
+        task_file=task_file,
+        context=context,
+        diff=diff,
+        include=include,
+        include_glob=include_glob,
+        include_from_diff=include_from_diff,
+        max_context_kb=max_context_kb,
+        max_file_kb=max_file_kb,
+        timeout_sec=timeout_sec,
+        outdir=outdir,
+        tools=tools,
+        dry_run=dry_run,
+        print_prompts=print_prompts,
+        verbose=verbose,
+        no_save=no_save,
+        redact_paths=redact_paths,
+        smart_context=smart_context,
+        structured_review=structured_review,
+        claude_n=claude_n,
+        codex_n=codex_n,
+        config=config,
     )
     _run(opts)
 
@@ -186,8 +215,12 @@ def feature(
     context: Annotated[ContextMode, typer.Option("--context", help="Context gathering mode")] = ContextMode.AUTO,
     diff: Annotated[DiffScope, typer.Option("--diff", help="Which diffs to include")] = DiffScope.ALL,
     include: Annotated[list[str] | None, typer.Option("--include", help="Include file content")] = None,
-    include_glob: Annotated[list[str] | None, typer.Option("--include-glob", help="Include files matching glob")] = None,
-    include_from_diff: Annotated[bool, typer.Option("--include-from-diff", help="Include changed file contents")] = False,
+    include_glob: Annotated[
+        list[str] | None, typer.Option("--include-glob", help="Include files matching glob")
+    ] = None,
+    include_from_diff: Annotated[
+        bool, typer.Option("--include-from-diff", help="Include changed file contents")
+    ] = False,
     max_context_kb: Annotated[int, typer.Option("--max-context-kb", help="Max total context size in KB")] = 300,
     max_file_kb: Annotated[int, typer.Option("--max-file-kb", help="Max single file size in KB")] = 60,
     timeout_sec: Annotated[int, typer.Option("--timeout-sec", help="Timeout per tool call in seconds")] = 180,
@@ -197,23 +230,49 @@ def feature(
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
     no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
-    redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
-    smart_context: Annotated[bool, typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs")] = False,
-    structured_review: Annotated[bool, typer.Option("--structured-review/--no-structured-review", help="Request JSON-structured critique output")] = False,
-    claude_n: Annotated[int, typer.Option("--claude-n", help="Number of Claude candidates to generate in Round 0", min=1, max=5)] = 1,
-    codex_n: Annotated[int, typer.Option("--codex-n", help="Number of Codex candidates to generate in Round 0", min=1, max=5)] = 1,
+    redact_paths: Annotated[
+        bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")
+    ] = False,
+    smart_context: Annotated[
+        bool,
+        typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs"),
+    ] = False,
+    structured_review: Annotated[
+        bool, typer.Option("--structured-review/--no-structured-review", help="Request JSON-structured critique output")
+    ] = False,
+    claude_n: Annotated[
+        int, typer.Option("--claude-n", help="Number of Claude candidates to generate in Round 0", min=1, max=5)
+    ] = 1,
+    codex_n: Annotated[
+        int, typer.Option("--codex-n", help="Number of Codex candidates to generate in Round 0", min=1, max=5)
+    ] = 1,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Implement a new feature using the multi-LLM council."""
     opts = _common_options(
-        task=task, mode=Mode.FEATURE, task_file=task_file, context=context,
-        diff=diff, include=include, include_glob=include_glob,
-        include_from_diff=include_from_diff, max_context_kb=max_context_kb,
-        max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
-        tools=tools, dry_run=dry_run, print_prompts=print_prompts,
-        verbose=verbose, no_save=no_save, redact_paths=redact_paths,
-        smart_context=smart_context, structured_review=structured_review,
-        claude_n=claude_n, codex_n=codex_n, config=config,
+        task=task,
+        mode=Mode.FEATURE,
+        task_file=task_file,
+        context=context,
+        diff=diff,
+        include=include,
+        include_glob=include_glob,
+        include_from_diff=include_from_diff,
+        max_context_kb=max_context_kb,
+        max_file_kb=max_file_kb,
+        timeout_sec=timeout_sec,
+        outdir=outdir,
+        tools=tools,
+        dry_run=dry_run,
+        print_prompts=print_prompts,
+        verbose=verbose,
+        no_save=no_save,
+        redact_paths=redact_paths,
+        smart_context=smart_context,
+        structured_review=structured_review,
+        claude_n=claude_n,
+        codex_n=codex_n,
+        config=config,
     )
     _run(opts)
 
@@ -225,8 +284,12 @@ def review(
     context: Annotated[ContextMode, typer.Option("--context", help="Context gathering mode")] = ContextMode.AUTO,
     diff: Annotated[DiffScope, typer.Option("--diff", help="Which diffs to include")] = DiffScope.STAGED,
     include: Annotated[list[str] | None, typer.Option("--include", help="Include file content")] = None,
-    include_glob: Annotated[list[str] | None, typer.Option("--include-glob", help="Include files matching glob")] = None,
-    include_from_diff: Annotated[bool, typer.Option("--include-from-diff", help="Include changed file contents")] = False,
+    include_glob: Annotated[
+        list[str] | None, typer.Option("--include-glob", help="Include files matching glob")
+    ] = None,
+    include_from_diff: Annotated[
+        bool, typer.Option("--include-from-diff", help="Include changed file contents")
+    ] = False,
     max_context_kb: Annotated[int, typer.Option("--max-context-kb", help="Max total context size in KB")] = 300,
     max_file_kb: Annotated[int, typer.Option("--max-file-kb", help="Max single file size in KB")] = 60,
     timeout_sec: Annotated[int, typer.Option("--timeout-sec", help="Timeout per tool call in seconds")] = 180,
@@ -236,23 +299,49 @@ def review(
     print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
     no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
-    redact_paths: Annotated[bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")] = False,
-    smart_context: Annotated[bool, typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs")] = False,
-    structured_review: Annotated[bool, typer.Option("--structured-review/--no-structured-review", help="Request JSON-structured critique output")] = True,
-    claude_n: Annotated[int, typer.Option("--claude-n", help="Number of Claude candidates to generate in Round 0", min=1, max=5)] = 1,
-    codex_n: Annotated[int, typer.Option("--codex-n", help="Number of Codex candidates to generate in Round 0", min=1, max=5)] = 1,
+    redact_paths: Annotated[
+        bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")
+    ] = False,
+    smart_context: Annotated[
+        bool,
+        typer.Option("--smart-context/--no-smart-context", help="Auto-include files referenced in tracebacks/logs"),
+    ] = False,
+    structured_review: Annotated[
+        bool, typer.Option("--structured-review/--no-structured-review", help="Request JSON-structured critique output")
+    ] = True,
+    claude_n: Annotated[
+        int, typer.Option("--claude-n", help="Number of Claude candidates to generate in Round 0", min=1, max=5)
+    ] = 1,
+    codex_n: Annotated[
+        int, typer.Option("--codex-n", help="Number of Codex candidates to generate in Round 0", min=1, max=5)
+    ] = 1,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
 ) -> None:
     """Review code changes using the multi-LLM council."""
     opts = _common_options(
-        task=task, mode=Mode.REVIEW, task_file=task_file, context=context,
-        diff=diff, include=include, include_glob=include_glob,
-        include_from_diff=include_from_diff, max_context_kb=max_context_kb,
-        max_file_kb=max_file_kb, timeout_sec=timeout_sec, outdir=outdir,
-        tools=tools, dry_run=dry_run, print_prompts=print_prompts,
-        verbose=verbose, no_save=no_save, redact_paths=redact_paths,
-        smart_context=smart_context, structured_review=structured_review,
-        claude_n=claude_n, codex_n=codex_n, config=config,
+        task=task,
+        mode=Mode.REVIEW,
+        task_file=task_file,
+        context=context,
+        diff=diff,
+        include=include,
+        include_glob=include_glob,
+        include_from_diff=include_from_diff,
+        max_context_kb=max_context_kb,
+        max_file_kb=max_file_kb,
+        timeout_sec=timeout_sec,
+        outdir=outdir,
+        tools=tools,
+        dry_run=dry_run,
+        print_prompts=print_prompts,
+        verbose=verbose,
+        no_save=no_save,
+        redact_paths=redact_paths,
+        smart_context=smart_context,
+        structured_review=structured_review,
+        claude_n=claude_n,
+        codex_n=codex_n,
+        config=config,
     )
     _run(opts)
 
@@ -260,7 +349,9 @@ def review(
 @app.command()
 def resume(
     run_dir: Annotated[Path, typer.Argument(help="Path to a previous run directory to resume")],
-    retry_failed: Annotated[bool, typer.Option("--retry-failed", help="Only re-run failed rounds, skip succeeded ones")] = False,
+    retry_failed: Annotated[
+        bool, typer.Option("--retry-failed", help="Only re-run failed rounds, skip succeeded ones")
+    ] = False,
     timeout_sec: Annotated[int, typer.Option("--timeout-sec", help="Timeout per tool call in seconds")] = 180,
     verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
     config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
@@ -282,8 +373,7 @@ def resume(
     state_file = run_path / "state.json"
     if not state_file.exists():
         typer.echo(
-            f"Error: no state.json in {run_path}. "
-            "Only runs created with council >= 1.1 can be resumed.",
+            f"Error: no state.json in {run_path}. Only runs created with council >= 1.1 can be resumed.",
             err=True,
         )
         raise typer.Exit(1)
@@ -309,10 +399,19 @@ def resume(
 @app.command(name="apply")
 def apply_cmd(
     run_dir: Annotated[Path, typer.Argument(help="Path to a council run directory containing final.patch")],
-    apply_to: Annotated[str | None, typer.Option("--apply-to", help="Create a new branch, apply the patch there (no commit)")] = None,
-    check: Annotated[bool, typer.Option("--check", help="Dry-run: verify the patch applies cleanly without modifying files")] = False,
-    diff: Annotated[bool, typer.Option("--diff", help="Show a syntax-highlighted preview of the patch before applying")] = False,
+    apply_to: Annotated[
+        str | None, typer.Option("--apply-to", help="Create a new branch, apply the patch there (no commit)")
+    ] = None,
+    check: Annotated[
+        bool, typer.Option("--check", help="Dry-run: verify the patch applies cleanly without modifying files")
+    ] = False,
+    diff: Annotated[
+        bool, typer.Option("--diff", help="Show a syntax-highlighted preview of the patch before applying")
+    ] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
+    force: Annotated[
+        bool, typer.Option("--force", help="Apply even if the working tree has uncommitted changes")
+    ] = False,
 ) -> None:
     """Apply a patch from a previous council run to the current repository.
 
@@ -333,8 +432,7 @@ def apply_cmd(
     patch = load_patch(run_path)
     if patch is None:
         typer.echo(
-            f"Error: no final.patch found in {run_path / 'final'}.\n"
-            "The council run may not have produced a diff.",
+            f"Error: no final.patch found in {run_path / 'final'}.\nThe council run may not have produced a diff.",
             err=True,
         )
         raise typer.Exit(1)
@@ -344,6 +442,21 @@ def apply_cmd(
     if repo_root is None:
         typer.echo("Error: not inside a git repository.", err=True)
         raise typer.Exit(1)
+
+    # Check for dirty working tree (skip for --check which is read-only).
+    if not check:
+        clean, wt_status = working_tree_clean(repo_root)
+        if not clean and not force:
+            typer.echo("Error: working tree has uncommitted changes:\n", err=True)
+            typer.echo(wt_status, err=True)
+            typer.echo(
+                "\nApplying a patch on a dirty tree may mix your changes with the patch.\n"
+                "Use --force to apply anyway, or commit/stash your changes first.",
+                err=True,
+            )
+            raise typer.Exit(1)
+        if not clean and force:
+            typer.echo("Warning: working tree has uncommitted changes (--force).", err=True)
 
     # Show diff preview if requested, or always in interactive mode.
     if diff or (not yes and not check):
@@ -370,10 +483,7 @@ def apply_cmd(
 
     # Interactive confirmation (unless --yes).
     if not yes:
-        if apply_to:
-            action = f"Create branch '{apply_to}' and apply patch"
-        else:
-            action = "Apply patch to working tree"
+        action = f"Create branch '{apply_to}' and apply patch" if apply_to else "Apply patch to working tree"
         confirmed = typer.confirm(f"{action}?")
         if not confirmed:
             typer.echo("Aborted.")
@@ -399,7 +509,7 @@ def apply_cmd(
     post_diff = post_apply_diff(repo_root)
     if post_diff:
         lines = post_diff.splitlines()
-        files_changed = [l for l in lines if l.startswith("diff --git")]
+        files_changed = [line for line in lines if line.startswith("diff --git")]
         typer.echo(f"\n{len(files_changed)} file(s) modified in working tree.")
         typer.echo("Review changes with: git diff")
         if not apply_to:
@@ -516,10 +626,12 @@ def doctor(
     else:
         config_locations: list[Path] = []
         if repo_root:
-            config_locations.extend([
-                repo_root / ".council.yml",
-                repo_root / "council.yml",
-            ])
+            config_locations.extend(
+                [
+                    repo_root / ".council.yml",
+                    repo_root / "council.yml",
+                ]
+            )
         config_locations.append(Path.home() / ".council.yml")
 
         config_used = None
@@ -653,6 +765,51 @@ def _check_codex_auth() -> bool | None:
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return None
+
+
+@app.command(name="list")
+def list_runs(
+    outdir: Annotated[Path, typer.Option("--outdir", help="Output directory to scan")] = Path("runs"),
+    limit: Annotated[int, typer.Option("--limit", "-n", help="Maximum number of runs to show")] = 20,
+) -> None:
+    """List recent council runs with status and metadata."""
+    if not outdir.is_dir():
+        typer.echo(f"No runs directory found at: {outdir}", err=True)
+        raise typer.Exit(1)
+
+    import json as _json
+
+    # Collect run directories (sorted newest first by name).
+    run_dirs = sorted(
+        [d for d in outdir.iterdir() if d.is_dir() and (d / "state.json").exists()],
+        key=lambda d: d.name,
+        reverse=True,
+    )
+
+    if not run_dirs:
+        typer.echo(f"No council runs found in {outdir}/")
+        return
+
+    typer.echo(f"{'RUN':50s}  {'MODE':8s}  {'STATUS':10s}  {'ROUNDS':20s}")
+    typer.echo("-" * 92)
+
+    for run_dir in run_dirs[:limit]:
+        try:
+            state = _json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+
+        mode = state.get("mode", "?")
+        status = state.get("status", "?")
+        rounds_info = state.get("rounds", {})
+        round_summary = " ".join(
+            f"{rname.split('_')[0]}:{rinfo.get('status', '?')[:2]}" for rname, rinfo in rounds_info.items()
+        )
+
+        typer.echo(f"{run_dir.name:50s}  {mode:8s}  {status:10s}  {round_summary}")
+
+    if len(run_dirs) > limit:
+        typer.echo(f"\n({len(run_dirs) - limit} more runs not shown; use --limit to see more)")
 
 
 def app_main() -> None:

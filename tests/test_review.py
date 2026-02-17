@@ -14,10 +14,10 @@ from council.review import (
     save_review_checklist,
 )
 
-
 # ---------------------------------------------------------------------------
 # JSON parsing
 # ---------------------------------------------------------------------------
+
 
 class TestParseReviewJSON:
     def test_parses_full_json_block(self):
@@ -57,19 +57,25 @@ More text after.
         assert result.confidence == 72
 
     def test_parses_minimal_json(self):
-        text = '```json\n{"must_fix": [], "should_fix": [], "tests": [], "patch_suggestions": [], "confidence": 95}\n```'
+        text = (
+            '```json\n{"must_fix": [], "should_fix": [], "tests": [], "patch_suggestions": [], "confidence": 95}\n```'
+        )
         result = parse_review(text)
         assert result.must_fix == []
         assert result.should_fix == []
         assert result.confidence == 95
 
     def test_clamps_confidence_to_100(self):
-        text = '```json\n{"must_fix": [], "should_fix": [], "tests": [], "patch_suggestions": [], "confidence": 150}\n```'
+        text = (
+            '```json\n{"must_fix": [], "should_fix": [], "tests": [], "patch_suggestions": [], "confidence": 150}\n```'
+        )
         result = parse_review(text)
         assert result.confidence == 100
 
     def test_clamps_confidence_to_0(self):
-        text = '```json\n{"must_fix": [], "should_fix": [], "tests": [], "patch_suggestions": [], "confidence": -10}\n```'
+        text = (
+            '```json\n{"must_fix": [], "should_fix": [], "tests": [], "patch_suggestions": [], "confidence": -10}\n```'
+        )
         result = parse_review(text)
         assert result.confidence == 0
 
@@ -80,19 +86,21 @@ More text after.
         assert result.must_fix[0].description == "Fix the bug"
 
     def test_ignores_invalid_json(self):
-        text = '```json\n{invalid json}\n```\n\n### Must-Fix Issues\n- Real issue here\n\n### Confidence Score\n80'
+        text = "```json\n{invalid json}\n```\n\n### Must-Fix Issues\n- Real issue here\n\n### Confidence Score\n80"
         result = parse_review(text)
         # Should fallback to markdown parsing.
         assert len(result.must_fix) == 1
         assert result.confidence == 80
 
     def test_preserves_raw_text(self):
-        text = '```json\n{"must_fix": [], "should_fix": [], "tests": [], "patch_suggestions": [], "confidence": 90}\n```'
+        text = (
+            '```json\n{"must_fix": [], "should_fix": [], "tests": [], "patch_suggestions": [], "confidence": 90}\n```'
+        )
         result = parse_review(text)
         assert result.raw_text == text
 
     def test_multiple_must_fix(self):
-        text = '''```json
+        text = """```json
 {
   "must_fix": [
     {"description": "Issue 1", "file": "a.py", "line": 1},
@@ -104,7 +112,7 @@ More text after.
   "patch_suggestions": [],
   "confidence": 30
 }
-```'''
+```"""
         result = parse_review(text)
         assert len(result.must_fix) == 3
         assert result.must_fix[2].file is None
@@ -114,6 +122,7 @@ More text after.
 # ---------------------------------------------------------------------------
 # Markdown fallback parsing
 # ---------------------------------------------------------------------------
+
 
 class TestParseReviewMarkdown:
     def test_parses_markdown_sections(self):
@@ -201,6 +210,7 @@ class TestParseReviewMarkdown:
 # ReviewResult properties
 # ---------------------------------------------------------------------------
 
+
 class TestReviewResultProperties:
     def test_is_clean_no_issues(self):
         r = ReviewResult()
@@ -239,6 +249,7 @@ class TestReviewResultProperties:
 # to_dict / serialization
 # ---------------------------------------------------------------------------
 
+
 class TestReviewResultSerialization:
     def test_to_dict_roundtrip(self):
         r = ReviewResult(
@@ -266,6 +277,7 @@ class TestReviewResultSerialization:
 # ---------------------------------------------------------------------------
 # Summary formatting
 # ---------------------------------------------------------------------------
+
 
 class TestFormatReviewSummary:
     def test_includes_confidence_bar(self):
@@ -312,6 +324,7 @@ class TestFormatReviewSummary:
 # Checklist file generation
 # ---------------------------------------------------------------------------
 
+
 class TestSaveReviewChecklist:
     def test_creates_checklist_file(self, tmp_path: Path):
         r = ReviewResult(
@@ -346,6 +359,7 @@ class TestSaveReviewChecklist:
 # ---------------------------------------------------------------------------
 # JSON_CRITIQUE_SUFFIX
 # ---------------------------------------------------------------------------
+
 
 class TestJSONCritiqueSuffix:
     def test_suffix_contains_json_instructions(self):

@@ -65,9 +65,7 @@ def save_context(run_dir: Path, ctx: GatheredContext) -> None:
     (run_dir / "context.md").write_text(ctx.text, encoding="utf-8")
 
     sources_data = [_source_to_dict(s) for s in ctx.sources]
-    (run_dir / "context_sources.json").write_text(
-        json.dumps(sources_data, indent=2), encoding="utf-8"
-    )
+    (run_dir / "context_sources.json").write_text(json.dumps(sources_data, indent=2), encoding="utf-8")
 
 
 def _source_to_dict(src: ContextSource) -> dict:
@@ -135,14 +133,8 @@ def write_manifest(
             "max_context_kb": opts.max_context_kb,
             "max_file_kb": opts.max_file_kb,
             "sources_count": len(ctx.sources),
-            "files_included": [
-                s.path for s in ctx.sources
-                if s.source_type == "file" and not s.excluded and s.path
-            ],
-            "files_truncated": [
-                s.path for s in ctx.sources
-                if s.source_type == "file" and s.truncated and s.path
-            ],
+            "files_included": [s.path for s in ctx.sources if s.source_type == "file" and not s.excluded and s.path],
+            "files_truncated": [s.path for s in ctx.sources if s.source_type == "file" and s.truncated and s.path],
         },
         "tools": {},
         "rounds": [],
@@ -181,16 +173,10 @@ def write_manifest(
     if opts.redact_paths:
         manifest["task_preview"] = redact_abs_paths(manifest["task_preview"])
         ctx_section = manifest["context"]
-        ctx_section["files_included"] = [
-            redact_abs_paths(p) for p in ctx_section["files_included"]
-        ]
-        ctx_section["files_truncated"] = [
-            redact_abs_paths(p) for p in ctx_section["files_truncated"]
-        ]
+        ctx_section["files_included"] = [redact_abs_paths(p) for p in ctx_section["files_included"]]
+        ctx_section["files_truncated"] = [redact_abs_paths(p) for p in ctx_section["files_truncated"]]
 
-    (run_dir / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, default=str), encoding="utf-8"
-    )
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
 
 
 _SENSITIVE_KEYWORDS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
@@ -268,9 +254,7 @@ def write_minimal_manifest(
             "tools_requested": opts.tools,
         },
     }
-    (run_dir / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, default=str), encoding="utf-8"
-    )
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
 
 
 def cleanup_intermediates(run_dir: Path) -> None:

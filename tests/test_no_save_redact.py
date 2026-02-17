@@ -13,10 +13,10 @@ from council.config import CouncilConfig
 from council.pipeline import run_pipeline
 from council.types import Mode, RunOptions, ToolResult
 
-
 # ---------------------------------------------------------------------------
 # redact_abs_paths unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestRedactAbsPaths:
     def test_redacts_home_path(self):
@@ -54,10 +54,7 @@ class TestRedactAbsPaths:
         assert "https://example.com/home/page" in result
 
     def test_multiple_paths(self):
-        text = (
-            "Files: /home/user/a.py and /Users/bob/b.ts\n"
-            "Also /var/lib/data/c.json"
-        )
+        text = "Files: /home/user/a.py and /Users/bob/b.ts\nAlso /var/lib/data/c.json"
         result = redact_abs_paths(text)
         assert "/home/user" not in result
         assert "/Users/bob" not in result
@@ -82,6 +79,7 @@ class TestRedactAbsPaths:
 # ---------------------------------------------------------------------------
 # cleanup_intermediates unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestCleanupIntermediates:
     def test_removes_task_and_context(self, tmp_path: Path):
@@ -124,6 +122,7 @@ class TestCleanupIntermediates:
 # write_minimal_manifest unit tests
 # ---------------------------------------------------------------------------
 
+
 class TestWriteMinimalManifest:
     def test_writes_slim_manifest(self, tmp_path: Path):
         from datetime import UTC, datetime
@@ -145,6 +144,7 @@ class TestWriteMinimalManifest:
 # ---------------------------------------------------------------------------
 # Pipeline integration: --no-save
 # ---------------------------------------------------------------------------
+
 
 def _mock_tool_result(name: str, stdout: str = "mock output", exit_code: int = 0) -> ToolResult:
     return ToolResult(
@@ -227,6 +227,7 @@ class TestNoSavePipeline:
 # Pipeline integration: --redact-paths
 # ---------------------------------------------------------------------------
 
+
 class TestRedactPathsPipeline:
     @pytest.mark.asyncio
     async def test_redact_paths_in_final_output(self, tmp_path: Path):
@@ -242,11 +243,7 @@ class TestRedactPathsPipeline:
         async def mock_run_tool(name, cfg, prompt, timeout_sec=180, cwd=None):
             return _mock_tool_result(
                 name,
-                stdout=(
-                    "### Summary\n"
-                    "Fixed the bug in /home/user/project/app.py\n"
-                    "Also checked /var/log/app.log\n"
-                ),
+                stdout=("### Summary\nFixed the bug in /home/user/project/app.py\nAlso checked /var/log/app.log\n"),
             )
 
         async def mock_run_parallel(configs, prompts, timeout_sec=180, cwd=None):
@@ -305,6 +302,7 @@ class TestRedactPathsPipeline:
 # ---------------------------------------------------------------------------
 # Combined: --no-save --redact-paths
 # ---------------------------------------------------------------------------
+
 
 class TestCombinedNoSaveRedact:
     @pytest.mark.asyncio
