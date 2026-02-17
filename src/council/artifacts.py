@@ -75,15 +75,17 @@ def _source_to_dict(src: ContextSource) -> dict:
 
 
 def save_round0(run_dir: Path, prompts: dict[str, str], results: dict[str, ToolResult]) -> None:
-    """Save Round 0 artifacts (parallel generation)."""
+    """Save Round 0 artifacts (parallel generation).
+
+    Saves all tool results by their actual names (supports multi-candidate
+    names like ``claude_0``, ``codex_1`` in addition to plain ``claude``).
+    """
     rdir = run_dir / "rounds" / "0_generate"
-    for name in ("claude", "codex"):
-        if name in prompts:
-            (rdir / f"prompt_{name}.md").write_text(prompts[name], encoding="utf-8")
-        if name in results:
-            r = results[name]
-            (rdir / f"{name}_stdout.md").write_text(r.stdout, encoding="utf-8")
-            (rdir / f"{name}_stderr.txt").write_text(r.stderr, encoding="utf-8")
+    for name, prompt_text in prompts.items():
+        (rdir / f"prompt_{name}.md").write_text(prompt_text, encoding="utf-8")
+    for name, r in results.items():
+        (rdir / f"{name}_stdout.md").write_text(r.stdout, encoding="utf-8")
+        (rdir / f"{name}_stderr.txt").write_text(r.stderr, encoding="utf-8")
 
 
 def save_round(
