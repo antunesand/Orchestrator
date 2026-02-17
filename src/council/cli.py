@@ -812,6 +812,99 @@ def list_runs(
         typer.echo(f"\n({len(run_dirs) - limit} more runs not shown; use --limit to see more)")
 
 
+# ---------------------------------------------------------------------------
+# UI sub-commands
+# ---------------------------------------------------------------------------
+
+ui_app = typer.Typer(
+    name="ui",
+    help="Launch the Council Web UI (Streamlit frontend + FastAPI backend).",
+    no_args_is_help=True,
+)
+app.add_typer(ui_app)
+
+
+@ui_app.command(name="api")
+def ui_api(
+    host: Annotated[str, typer.Option("--host", help="Bind address")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Bind port")] = 8717,
+) -> None:
+    """Start the Council FastAPI server."""
+    try:
+        import uvicorn  # noqa: F811
+    except ImportError:
+        typer.echo(
+            "Error: uvicorn is not installed.\n"
+            'Install the API extras:  pip install -e ".[api]"  or  pip install -e ".[web]"',
+            err=True,
+        )
+        raise typer.Exit(1) from None
+
+    try:
+        import fastapi as _fastapi  # noqa: F401, F811
+    except ImportError:
+        typer.echo(
+            "Error: fastapi is not installed.\n"
+            'Install the API extras:  pip install -e ".[api]"  or  pip install -e ".[web]"',
+            err=True,
+        )
+        raise typer.Exit(1) from None
+
+    if host == "0.0.0.0":  # noqa: S104
+        typer.echo(
+            "WARNING: Binding to 0.0.0.0 exposes this server to the network.\n"
+            "Council can execute code-review tooling on local repos — do NOT\n"
+            "expose this to the internet.",
+            err=True,
+        )
+
+    typer.echo(f"Starting Council API on http://{host}:{port}")
+    uvicorn.run("council.ui.api:app", host=host, port=port, log_level="info")
+
+
+@ui_app.command(name="streamlit")
+def ui_streamlit(
+    host: Annotated[str, typer.Option("--host", help="Bind address")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Bind port")] = 8501,
+) -> None:
+    """Launch the Council Streamlit UI."""
+    try:
+        import streamlit  # noqa: F401, F811
+    except ImportError:
+        typer.echo(
+            "Error: streamlit is not installed.\n"
+            'Install the UI extras:  pip install -e ".[ui]"  or  pip install -e ".[web]"',
+            err=True,
+        )
+        raise typer.Exit(1) from None
+
+    import importlib.util
+
+    app_path = importlib.util.find_spec("council.ui.streamlit_app")
+    if app_path is None or app_path.origin is None:
+        typer.echo("Error: Could not locate streamlit_app.py", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"Launching Streamlit on http://{host}:{port}")
+    typer.echo("Make sure the API is running:  council ui api")
+    import subprocess as _sp
+
+    _sp.run(
+        [
+            "streamlit",
+            "run",
+            app_path.origin,
+            "--server.address",
+            host,
+            "--server.port",
+            str(port),
+            "--server.headless",
+            "true",
+        ],
+        check=False,
+    )
+
+
 def app_main() -> None:
     """Entry point for the console script."""
     app()
