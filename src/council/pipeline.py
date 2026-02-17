@@ -457,6 +457,10 @@ async def _run_rounds(
         for name, result in r0_results.items():
             _print_progress(f"  {name}: {_tool_status_str(result)} ({result.duration_sec:.1f}s)")
             _print_verbose(f"stdout: {len(result.stdout)} bytes, stderr: {len(result.stderr)} bytes", verbose)
+            # Show stderr when a tool fails so users can diagnose issues.
+            if not _tool_ok(result) and result.stderr.strip():
+                for line in result.stderr.strip().splitlines()[:10]:
+                    _print_progress(f"    [dim]{line}[/dim]")
 
         # Collect successful outputs grouped by tool family.
         claude_candidates: list[tuple[str, str]] = []
