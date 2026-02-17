@@ -6,6 +6,7 @@ import asyncio
 import importlib.resources
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -709,6 +710,24 @@ def doctor(
         raise typer.Exit(1)
 
 
+def _run_tool(args: list[str], timeout: int = 5) -> subprocess.CompletedProcess[str]:
+    """Run a tool command, using shell=True on Windows for .cmd wrappers.
+
+    On Windows many CLI tools (e.g. ``codex``) are installed as ``.cmd``
+    batch wrappers via npm.  ``subprocess.run(["codex", ...])`` cannot
+    launch ``.cmd`` files directly — ``shell=True`` is required so that
+    ``cmd.exe`` resolves the wrapper.
+    """
+    use_shell = sys.platform == "win32"
+    return subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        shell=use_shell,
+    )
+
+
 def _probe_tool_version(cmd: str) -> str | None:
     """Try to get a version string from a tool (--version, then --help).
 
@@ -716,12 +735,7 @@ def _probe_tool_version(cmd: str) -> str | None:
     """
     for flag in ("--version", "--help"):
         try:
-            result = subprocess.run(
-                [cmd, flag],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
+            result = _run_tool([cmd, flag])
             output = (result.stdout or result.stderr or "").strip()
             if output and result.returncode == 0:
                 # Return first line, truncated.
@@ -741,12 +755,7 @@ def _check_subcommand(full_cmd: list[str]) -> bool:
     that contains typical help keywords.
     """
     try:
-        result = subprocess.run(
-            [*full_cmd, "--help"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
+        result = _run_tool([*full_cmd, "--help"])
         if result.returncode == 0:
             return True
         # Fallback: treat as valid if stdout/stderr contains help-like text.
@@ -763,12 +772,7 @@ def _check_codex_auth() -> bool | None:
     Returns True if logged in (exit 0), False if not (non-zero), None on error.
     """
     try:
-        result = subprocess.run(
-            ["codex", "login", "status"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
+        result = _run_tool(["codex", "login", "status"])
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return None
