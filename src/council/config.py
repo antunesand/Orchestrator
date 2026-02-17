@@ -36,9 +36,10 @@ class CouncilConfig(BaseModel):
         - Claude Code: ``claude -p "query"`` (headless print mode).
           The full prompt is piped via stdin; a short constant query
           argument satisfies the required positional arg for ``-p``.
-        - Codex: ``codex exec`` with ``--ask-for-approval never``,
-          ``--sandbox read-only``, ``--color never``, and ``-``
-          (read prompt from stdin)
+        - Codex: ``codex exec`` with ``--sandbox read-only``,
+          ``--color never``, and ``-`` (read prompt from stdin).
+          Note: ``exec`` is already non-interactive so
+          ``--ask-for-approval`` is not needed / not accepted.
         """
         return cls(
             tools={
@@ -56,8 +57,6 @@ class CouncilConfig(BaseModel):
                     command=["codex", "exec"],
                     input_mode=InputMode.STDIN,
                     extra_args=[
-                        "--ask-for-approval",
-                        "never",
                         "--sandbox",
                         "read-only",
                         # Disable ANSI color codes so saved artifacts are clean.

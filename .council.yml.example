@@ -28,8 +28,6 @@ tools:
     input_mode: "stdin"
     prompt_file_arg: null
     extra_args:
-      - "--ask-for-approval"
-      - "never"                  # prevents interactive approval pauses
       - "--sandbox"
       - "read-only"              # safer default: no file writes by Codex
       - "--color"

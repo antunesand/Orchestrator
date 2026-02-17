@@ -73,10 +73,10 @@ class TestDefaults:
         config = CouncilConfig.defaults()
         args = config.tools["codex"].extra_args
         assert config.tools["codex"].command == ["codex", "exec"]
-        assert "--ask-for-approval" in args
-        assert "never" in args
         assert "--sandbox" in args
         assert "read-only" in args
+        # codex exec is already non-interactive; --ask-for-approval is not accepted.
+        assert "--ask-for-approval" not in args
         # --color never keeps saved artifacts free of ANSI codes.
         color_idx = args.index("--color")
         assert args[color_idx + 1] == "never"
