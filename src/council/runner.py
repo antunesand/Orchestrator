@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -50,14 +51,29 @@ async def run_tool(
         stdin_data = prompt.encode("utf-8")
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE if stdin_data is not None else asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-            cwd=str(cwd) if cwd else None,
-        )
+        # On Windows, CLI tools like codex/claude are often .cmd wrappers
+        # that require shell=True.  Use create_subprocess_shell there.
+        if sys.platform == "win32":
+            import subprocess as _sp
+
+            shell_cmd = _sp.list2cmdline(cmd)
+            proc = await asyncio.create_subprocess_shell(
+                shell_cmd,
+                stdin=asyncio.subprocess.PIPE if stdin_data is not None else asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+                cwd=str(cwd) if cwd else None,
+            )
+        else:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE if stdin_data is not None else asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+                cwd=str(cwd) if cwd else None,
+            )
 
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
