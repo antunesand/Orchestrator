@@ -572,8 +572,7 @@ def _get_example_config_text() -> str:
             "  codex:\n"
             '    command: ["codex", "exec"]\n'
             '    input_mode: "stdin"\n'
-            '    extra_args: ["--ask-for-approval", "never",'
-            ' "--sandbox", "read-only",'
+            '    extra_args: ["--sandbox", "read-only",'
             ' "--color", "never",'
             ' "-"]\n'
             "    env: {}\n"

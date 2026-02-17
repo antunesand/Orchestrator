@@ -209,8 +209,6 @@ tools:
     command: ["codex", "exec"]   # exec subcommand is the automation-friendly mode
     input_mode: "stdin"
     extra_args:
-      - "--ask-for-approval"
-      - "never"                  # prevents interactive approval pauses
       - "--sandbox"
       - "read-only"              # safer default: no file writes by Codex
       - "--color"
@@ -224,7 +222,6 @@ tools:
 
 - **Claude `-p "query"`** (print mode): Runs non-interactively, prints response to stdout. Council pipes the full prompt via stdin and passes a short print-mode query argument. The official CLI pattern is `claude -p "query"`, where piped stdin is processed as additional context.
 - **Codex `exec`**: The automation-friendly subcommand (vs the interactive default). Use `codex exec` for scripted/CI-style runs.
-- **Codex `--ask-for-approval never`**: Prevents Codex from pausing to ask for user confirmation mid-run, which would hang the pipeline.
 - **Codex `--sandbox read-only`**: Safer default — Codex can read your repo but won't write files or run commands.
 - **Codex `--color never`**: Disables ANSI color escape codes in stdout, keeping saved run artifacts clean and readable.
 - **Codex `-` (last arg)**: This is the PROMPT positional argument. The literal `-` tells Codex to read the prompt from stdin. **It must be the last argument.**
@@ -257,7 +254,7 @@ tools:
     command: ["codex", "exec"]
     input_mode: "file"
     prompt_file_arg: "--input"
-    extra_args: ["--ask-for-approval", "never", "--sandbox", "read-only", "--color", "never"]
+    extra_args: ["--sandbox", "read-only", "--color", "never"]
 ```
 
 ## Run Artifacts
