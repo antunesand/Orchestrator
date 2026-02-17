@@ -292,3 +292,87 @@ class TestListRuns:
         result = runner.invoke(app, ["list", "--outdir", str(runs), "--limit", "2"])
         assert result.exit_code == 0
         assert "3 more runs not shown" in result.output
+
+
+class TestAskCommand:
+    """Tests for `council ask`."""
+
+    def test_ask_requires_question(self):
+        """ask with no question should fail."""
+        with patch("council.cli._run"):
+            result = runner.invoke(app, ["ask"])
+        assert result.exit_code != 0
+
+    def test_ask_sets_ask_mode(self):
+        """ask should set mode=ASK and pass the question as the task."""
+        with patch("council.cli._run") as mock_run:
+            result = runner.invoke(app, ["ask", "Explain what this repo does"])
+        assert result.exit_code == 0
+        opts = mock_run.call_args[0][0]
+        from council.types import Mode
+
+        assert opts.mode == Mode.ASK
+        assert opts.task == "Explain what this repo does"
+
+    def test_ask_defaults_to_no_diff(self):
+        """ask should default to --diff none (no diffs for questions)."""
+        with patch("council.cli._run") as mock_run:
+            result = runner.invoke(app, ["ask", "What does config.py do?"])
+        assert result.exit_code == 0
+        opts = mock_run.call_args[0][0]
+        from council.types import DiffScope
+
+        assert opts.diff_scope == DiffScope.NONE
+
+    def test_ask_accepts_include(self):
+        """ask should accept --include to focus on specific files."""
+        with patch("council.cli._run") as mock_run:
+            result = runner.invoke(
+                app, ["ask", "Explain this file", "--include", "src/council/config.py"]
+            )
+        assert result.exit_code == 0
+        opts = mock_run.call_args[0][0]
+        assert "src/council/config.py" in opts.include_paths
+
+    def test_ask_with_task_file(self, tmp_path: Path):
+        """ask should accept --task-file."""
+        q_file = tmp_path / "question.txt"
+        q_file.write_text("How does the pipeline work?", encoding="utf-8")
+        with patch("council.cli._run") as mock_run:
+            result = runner.invoke(app, ["ask", "--task-file", str(q_file)])
+        assert result.exit_code == 0
+        opts = mock_run.call_args[0][0]
+        assert "pipeline" in opts.task.lower()
+
+
+class TestAskPrompt:
+    """Tests for the ASK mode prompt template."""
+
+    def test_ask_prompt_uses_answer_format(self):
+        """ASK mode should produce answer-oriented output format, not patch format."""
+        from council.prompts import round0_prompt
+        from council.types import Mode
+
+        prompt = round0_prompt(Mode.ASK, "What does this repo do?", "some context")
+        assert "### Answer" in prompt
+        assert "### Key Details" in prompt
+        # Should NOT include patch-oriented sections.
+        assert "### Patch" not in prompt
+        assert "### Rollback Plan" not in prompt
+
+    def test_ask_prompt_contains_question_framing(self):
+        """ASK mode frame should mention answering a question."""
+        from council.prompts import round0_prompt
+        from council.types import Mode
+
+        prompt = round0_prompt(Mode.ASK, "Explain the architecture", "context here")
+        assert "answering a question" in prompt.lower()
+
+    def test_fix_prompt_still_uses_patch_format(self):
+        """FIX mode should still produce patch-oriented output format."""
+        from council.prompts import round0_prompt
+        from council.types import Mode
+
+        prompt = round0_prompt(Mode.FIX, "Fix the bug", "some context")
+        assert "### Patch" in prompt
+        assert "### Answer" not in prompt

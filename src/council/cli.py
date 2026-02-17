@@ -348,6 +348,54 @@ def review(
 
 
 @app.command()
+def ask(
+    question: Annotated[str, typer.Argument(help="Question about the codebase")] = "",
+    task_file: Annotated[Path | None, typer.Option("--task-file", help="Read question from file")] = None,
+    context: Annotated[ContextMode, typer.Option("--context", help="Context gathering mode")] = ContextMode.AUTO,
+    diff: Annotated[DiffScope, typer.Option("--diff", help="Which diffs to include")] = DiffScope.NONE,
+    include: Annotated[list[str] | None, typer.Option("--include", help="Include file content")] = None,
+    include_glob: Annotated[
+        list[str] | None, typer.Option("--include-glob", help="Include files matching glob")
+    ] = None,
+    max_context_kb: Annotated[int, typer.Option("--max-context-kb", help="Max total context size in KB")] = 300,
+    max_file_kb: Annotated[int, typer.Option("--max-file-kb", help="Max single file size in KB")] = 60,
+    timeout_sec: Annotated[int, typer.Option("--timeout-sec", help="Timeout per tool call in seconds")] = 180,
+    outdir: Annotated[Path, typer.Option("--outdir", help="Output directory for runs")] = Path("runs"),
+    tools: Annotated[str, typer.Option("--tools", help="Comma-separated tool names")] = "claude,codex",
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Write prompts only, don't call tools")] = False,
+    print_prompts: Annotated[bool, typer.Option("--print-prompts", help="Print prompts to terminal")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    no_save: Annotated[bool, typer.Option("--no-save", help="Only save final output and minimal manifest")] = False,
+    redact_paths: Annotated[
+        bool, typer.Option("--redact-paths", help="Redact absolute paths in saved artifacts")
+    ] = False,
+    config: Annotated[Path | None, typer.Option("--config", help="Path to config file")] = None,
+) -> None:
+    """Ask a question about the codebase using the multi-LLM council."""
+    opts = _common_options(
+        task=question,
+        mode=Mode.ASK,
+        task_file=task_file,
+        context=context,
+        diff=diff,
+        include=include,
+        include_glob=include_glob,
+        max_context_kb=max_context_kb,
+        max_file_kb=max_file_kb,
+        timeout_sec=timeout_sec,
+        outdir=outdir,
+        tools=tools,
+        dry_run=dry_run,
+        print_prompts=print_prompts,
+        verbose=verbose,
+        no_save=no_save,
+        redact_paths=redact_paths,
+        config=config,
+    )
+    _run(opts)
+
+
+@app.command()
 def resume(
     run_dir: Annotated[Path, typer.Argument(help="Path to a previous run directory to resume")],
     retry_failed: Annotated[

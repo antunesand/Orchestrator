@@ -36,6 +36,11 @@ _MODE_FRAME: dict[Mode, str] = {
         "The user has provided changes (diffs) and/or code below. "
         "Focus on correctness, edge cases, security, performance, and test coverage."
     ),
+    Mode.ASK: (
+        "You are answering a question about the codebase. "
+        "The user has asked a question below along with relevant context. "
+        "Provide a clear, thorough, and accurate answer based on the provided context."
+    ),
 }
 
 # ---------------------------------------------------------------------------
@@ -62,10 +67,25 @@ List exact test commands and what each validates.
 How to revert these changes safely if something goes wrong.
 """
 
+_ROUND0_ASK_SUFFIX = """\
+
+Provide your response in the following structured format:
+
+### Answer
+A clear, thorough answer to the question.
+
+### Key Details
+Bullet points with specific file paths, functions, or code references that support your answer.
+
+### Related Areas
+Other parts of the codebase that are relevant or connected.
+"""
+
 
 def round0_prompt(mode: Mode, task: str, context: str) -> str:
     """Build the Round 0 prompt for initial generation."""
-    return f"{_PREAMBLE}\n\n{_MODE_FRAME[mode]}\n\n## Task\n{task}\n\n## Context\n{context}\n\n{_ROUND0_SUFFIX}"
+    suffix = _ROUND0_ASK_SUFFIX if mode == Mode.ASK else _ROUND0_SUFFIX
+    return f"{_PREAMBLE}\n\n{_MODE_FRAME[mode]}\n\n## Task\n{task}\n\n## Context\n{context}\n\n{suffix}"
 
 
 # ---------------------------------------------------------------------------
