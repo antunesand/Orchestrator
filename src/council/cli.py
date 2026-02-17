@@ -735,7 +735,10 @@ def _probe_tool_version(cmd: str) -> str | None:
 def _check_subcommand(full_cmd: list[str]) -> bool:
     """Check if a subcommand exists by running it with --help.
 
-    E.g. ``["codex", "exec", "--help"]``. Returns True if exit code is 0.
+    E.g. ``["codex", "exec", "--help"]``.  Returns True when the help
+    text is produced — some CLIs (notably ``codex exec``) return a
+    non-zero exit code even for ``--help``, so we also accept output
+    that contains typical help keywords.
     """
     try:
         result = subprocess.run(
@@ -744,7 +747,12 @@ def _check_subcommand(full_cmd: list[str]) -> bool:
             text=True,
             timeout=5,
         )
-        return result.returncode == 0
+        if result.returncode == 0:
+            return True
+        # Fallback: treat as valid if stdout/stderr contains help-like text.
+        output = (result.stdout or "") + (result.stderr or "")
+        lower = output.lower()
+        return any(kw in lower for kw in ("usage:", "options:", "commands:", "--help"))
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return False
 
