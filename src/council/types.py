@@ -13,6 +13,7 @@ class Mode(str, enum.Enum):
     FIX = "fix"
     FEATURE = "feature"
     REVIEW = "review"
+    ASK = "ask"
 
 
 class DiffScope(str, enum.Enum):
